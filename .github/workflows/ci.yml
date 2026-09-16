@@ -25,20 +25,112 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Prepare CI evidence directory
+        run: mkdir -p ci-evidence
 
-      - name: Install browser
-        run: npx playwright install --with-deps chromium
+      - name: Install dependencies
+        id: dependencies
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm ci 2>&1 | tee ci-evidence/npm-ci.log
 
       - name: Check Astro and TypeScript
-        run: npm run check
+        id: astro
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run check 2>&1 | tee ci-evidence/astro-check.log
 
       - name: Run unit tests
-        run: npm run test:unit
+        id: unit
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:unit -- --reporter=json --outputFile=ci-evidence/vitest-report.json 2>&1 | tee ci-evidence/vitest.log
+
+      - name: Install browser
+        id: browser
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npx playwright install --with-deps chromium 2>&1 | tee ci-evidence/playwright-install.log
 
       - name: Run browser tests
-        run: npm run test:e2e
+        id: e2e
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: ci-evidence/playwright-report.json
+        run: |
+          set -o pipefail
+          npm run test:e2e -- --reporter=github,json 2>&1 | tee ci-evidence/playwright.log
 
       - name: Build production site
-        run: npm run build
+        id: build
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee ci-evidence/build.log
+
+      - name: Generate CI evidence manifest
+        id: manifest
+        if: always()
+        env:
+          EVIDENCE_TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_EVIDENCE_DIR: ci-evidence
+          CI_OUTCOME_DEPENDENCIES: ${{ steps.dependencies.outcome }}
+          CI_OUTCOME_ASTRO: ${{ steps.astro.outcome }}
+          CI_OUTCOME_UNIT: ${{ steps.unit.outcome }}
+          CI_OUTCOME_BROWSER: ${{ steps.browser.outcome }}
+          CI_OUTCOME_E2E: ${{ steps.e2e.outcome }}
+          CI_OUTCOME_BUILD: ${{ steps.build.outcome }}
+        run: GITHUB_SHA="$EVIDENCE_TARGET_SHA" node scripts/ci-evidence.mjs generate ci-evidence/manifest.json
+
+      - name: Validate CI evidence manifest
+        id: manifest_validation
+        if: always()
+        continue-on-error: true
+        env:
+          EVIDENCE_TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: GITHUB_SHA="$EVIDENCE_TARGET_SHA" node scripts/ci-evidence.mjs validate ci-evidence/manifest.json
+
+      - name: Upload CI evidence artifact
+        id: evidence_upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ci-evidence/
+            test-results/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce CI result after evidence upload
+        if: always()
+        env:
+          EVIDENCE_TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          MANIFEST_VALIDATION_OUTCOME: ${{ steps.manifest_validation.outcome }}
+          EVIDENCE_UPLOAD_OUTCOME: ${{ steps.evidence_upload.outcome }}
+        shell: bash
+        run: |
+          if [ "$MANIFEST_VALIDATION_OUTCOME" != "success" ]; then
+            echo "CI evidence manifest validation failed."
+            exit 1
+          fi
+          if [ "$EVIDENCE_UPLOAD_OUTCOME" != "success" ]; then
+            echo "CI evidence artifact upload failed."
+            exit 1
+          fi
+          GITHUB_SHA="$EVIDENCE_TARGET_SHA" node scripts/ci-evidence.mjs gate ci-evidence/manifest.json
