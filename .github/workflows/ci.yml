@@ -87,6 +87,7 @@ jobs:
         id: manifest
         if: always()
         env:
+          EVIDENCE_TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           CI_EVIDENCE_DIR: ci-evidence
           CI_OUTCOME_DEPENDENCIES: ${{ steps.dependencies.outcome }}
           CI_OUTCOME_ASTRO: ${{ steps.astro.outcome }}
@@ -94,13 +95,15 @@ jobs:
           CI_OUTCOME_BROWSER: ${{ steps.browser.outcome }}
           CI_OUTCOME_E2E: ${{ steps.e2e.outcome }}
           CI_OUTCOME_BUILD: ${{ steps.build.outcome }}
-        run: node scripts/ci-evidence.mjs generate ci-evidence/manifest.json
+        run: GITHUB_SHA="$EVIDENCE_TARGET_SHA" node scripts/ci-evidence.mjs generate ci-evidence/manifest.json
 
       - name: Validate CI evidence manifest
         id: manifest_validation
         if: always()
         continue-on-error: true
-        run: node scripts/ci-evidence.mjs validate ci-evidence/manifest.json
+        env:
+          EVIDENCE_TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: GITHUB_SHA="$EVIDENCE_TARGET_SHA" node scripts/ci-evidence.mjs validate ci-evidence/manifest.json
 
       - name: Upload CI evidence artifact
         id: evidence_upload
@@ -117,6 +120,7 @@ jobs:
       - name: Enforce CI result after evidence upload
         if: always()
         env:
+          EVIDENCE_TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           MANIFEST_VALIDATION_OUTCOME: ${{ steps.manifest_validation.outcome }}
           EVIDENCE_UPLOAD_OUTCOME: ${{ steps.evidence_upload.outcome }}
         shell: bash
@@ -129,4 +133,4 @@ jobs:
             echo "CI evidence artifact upload failed."
             exit 1
           fi
-          node scripts/ci-evidence.mjs gate ci-evidence/manifest.json
+          GITHUB_SHA="$EVIDENCE_TARGET_SHA" node scripts/ci-evidence.mjs gate ci-evidence/manifest.json
