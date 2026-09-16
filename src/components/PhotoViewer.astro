@@ -1,0 +1,121 @@
+<dialog class="photo-viewer" data-photo-viewer aria-labelledby="photo-viewer-title">
+  <div class="viewer-surface">
+    <h2 id="photo-viewer-title" class="visually-hidden">Visor de fotografías</h2>
+    <form method="dialog" class="viewer-close-form">
+      <button class="viewer-control viewer-close" value="close" aria-label="Cerrar visor">
+        <span aria-hidden="true">×</span>
+      </button>
+    </form>
+
+    <button class="viewer-control viewer-previous" type="button" data-viewer-previous aria-label="Fotografía anterior">
+      <span aria-hidden="true">←</span>
+    </button>
+
+    <img class="viewer-image" data-viewer-image alt="" />
+
+    <button class="viewer-control viewer-next" type="button" data-viewer-next aria-label="Fotografía siguiente">
+      <span aria-hidden="true">→</span>
+    </button>
+
+    <p class="visually-hidden" aria-live="polite" data-viewer-status></p>
+  </div>
+</dialog>
+
+<script>
+  const viewer = document.querySelector<HTMLDialogElement>('[data-photo-viewer]');
+  const triggers = [...document.querySelectorAll<HTMLAnchorElement>('[data-photo-trigger]')];
+
+  if (viewer && triggers.length > 0 && typeof viewer.showModal === 'function') {
+    const image = viewer.querySelector<HTMLImageElement>('[data-viewer-image]');
+    const status = viewer.querySelector<HTMLElement>('[data-viewer-status]');
+    const previous = viewer.querySelector<HTMLButtonElement>('[data-viewer-previous]');
+    const next = viewer.querySelector<HTMLButtonElement>('[data-viewer-next]');
+    const close = viewer.querySelector<HTMLButtonElement>('.viewer-close');
+    let currentIndex = 0;
+    let opener: HTMLAnchorElement | null = null;
+    let pointerStartX: number | null = null;
+
+    const updateUrl = (photoId?: string) => {
+      const url = new URL(window.location.href);
+      if (photoId) {
+        url.searchParams.set('foto', photoId);
+        url.hash = '';
+      } else {
+        url.searchParams.delete('foto');
+      }
+      window.history.replaceState(window.history.state, '', url);
+    };
+
+    const showPhoto = (index: number) => {
+      const wrappedIndex = (index + triggers.length) % triggers.length;
+      const trigger = triggers[wrappedIndex];
+      const source = trigger?.querySelector<HTMLImageElement>('img');
+      if (!trigger || !source || !image) return;
+
+      currentIndex = wrappedIndex;
+      image.src = source.currentSrc || source.src;
+      image.srcset = source.srcset;
+      image.sizes = '100vw';
+      image.alt = source.alt;
+      const hasMultiple = triggers.length > 1;
+      if (previous) previous.hidden = !hasMultiple;
+      if (next) next.hidden = !hasMultiple;
+      if (status) status.textContent = `Fotografía ${currentIndex + 1} de ${triggers.length}`;
+      updateUrl(trigger.dataset.photoId);
+    };
+
+    const openViewer = (index: number, source?: HTMLAnchorElement) => {
+      opener = source ?? null;
+      showPhoto(index);
+      if (!viewer.open) viewer.showModal();
+      close?.focus();
+    };
+
+    triggers.forEach((trigger, index) => {
+      trigger.addEventListener('click', (event) => {
+        event.preventDefault();
+        openViewer(index, trigger);
+      });
+    });
+
+    previous?.addEventListener('click', () => showPhoto(currentIndex - 1));
+    next?.addEventListener('click', () => showPhoto(currentIndex + 1));
+
+    viewer.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        showPhoto(currentIndex - 1);
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        showPhoto(currentIndex + 1);
+      }
+    });
+
+    viewer.addEventListener('pointerdown', (event) => {
+      pointerStartX = event.clientX;
+    });
+
+    viewer.addEventListener('pointerup', (event) => {
+      if (pointerStartX === null) return;
+      const distance = event.clientX - pointerStartX;
+      pointerStartX = null;
+      if (Math.abs(distance) < 60) return;
+      showPhoto(currentIndex + (distance < 0 ? 1 : -1));
+    });
+
+    viewer.addEventListener('close', () => {
+      updateUrl();
+      opener?.focus();
+      opener = null;
+    });
+
+    const requestedPhoto = new URL(window.location.href).searchParams.get('foto');
+    if (requestedPhoto) {
+      const requestedIndex = triggers.findIndex(
+        (trigger) => trigger.dataset.photoId === requestedPhoto,
+      );
+      if (requestedIndex >= 0) openViewer(requestedIndex);
+    }
+  }
+</script>

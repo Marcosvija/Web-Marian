@@ -1,0 +1,11 @@
+---
+import PortfolioIndexView from '../../components/PortfolioIndexView.astro';
+import { getOrderedCategories } from '../../lib/categories';
+import AlbumLayout from '../../layouts/AlbumLayout.astro';
+
+const categories = await getOrderedCategories();
+---
+
+<AlbumLayout title="Portfolio — Marian">
+  <PortfolioIndexView categories={categories} />
+</AlbumLayout>

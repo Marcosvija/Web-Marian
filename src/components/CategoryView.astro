@@ -1,0 +1,47 @@
+---
+import type { CategoryEntry } from '../lib/categories';
+import PhotoGrid from './PhotoGrid.astro';
+import PhotoViewer from './PhotoViewer.astro';
+
+interface Props {
+  category: CategoryEntry;
+  previous?: CategoryEntry | undefined;
+  next?: CategoryEntry | undefined;
+}
+
+const { category, previous, next } = Astro.props;
+const { title, description, photos } = category.data;
+---
+
+<article class="category-view sheet" aria-labelledby="category-title">
+  <header class="section-heading category-heading">
+    <p class="eyebrow">Categoría fotográfica</p>
+    <h1 id="category-title">{title}</h1>
+    {description && <p class="category-description">{description}</p>}
+  </header>
+
+  {photos.length > 0 ? (
+    <>
+      <PhotoGrid photos={photos} />
+      <PhotoViewer />
+    </>
+  ) : (
+    <p class="empty-state" role="status">Esta categoría todavía no contiene fotografías.</p>
+  )}
+
+  <nav class="category-pagination" aria-label="Recorrido entre categorías">
+    {previous ? (
+      <a rel="prev" href={`/portfolio/${previous.data.slug}/`}>
+        <span aria-hidden="true">←</span> {previous.data.title}
+      </a>
+    ) : <span></span>}
+    <a href="/portfolio/">Índice</a>
+    {next ? (
+      <a rel="next" href={`/portfolio/${next.data.slug}/`}>
+        {next.data.title} <span aria-hidden="true">→</span>
+      </a>
+    ) : (
+      <a href="/contacto/">Contacto <span aria-hidden="true">→</span></a>
+    )}
+  </nav>
+</article>

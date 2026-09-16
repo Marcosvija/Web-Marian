@@ -1,0 +1,30 @@
+---
+import BookmarkIndex from '../components/BookmarkIndex.astro';
+import { getAlbumNavigation } from '../lib/navigation';
+import BaseLayout from './BaseLayout.astro';
+
+interface Props {
+  title: string;
+  description?: string | undefined;
+}
+
+const { title, description } = Astro.props;
+const navigation = await getAlbumNavigation();
+---
+
+<BaseLayout title={title} description={description}>
+  <div class="site-shell">
+    <header class="site-header">
+      <a class="site-home" href="/" aria-label="Marian, inicio">
+        <span aria-hidden="true">M</span>
+        <span>Marian</span>
+      </a>
+    </header>
+
+    <BookmarkIndex items={navigation} currentPath={Astro.url.pathname} />
+
+    <main id="contenido" class="album-frame" tabindex="-1">
+      <slot />
+    </main>
+  </div>
+</BaseLayout>
