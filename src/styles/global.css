@@ -307,9 +307,13 @@ h1 {
 
 .category-pagination {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 0.5rem;
+  grid-template-areas:
+    "previous index"
+    "next next";
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1rem;
   margin-block-start: clamp(2rem, 7vw, 5rem);
+  padding-block-start: 1rem;
   border-block-start: 1px solid var(--line);
 }
 
@@ -321,13 +325,34 @@ h1 {
   gap: 0.5rem;
 }
 
-.category-pagination a:nth-child(2) {
-  justify-content: center;
+.category-pagination-previous,
+.category-pagination-placeholder {
+  grid-area: previous;
 }
 
-.category-pagination a:last-child {
+.category-pagination-index {
+  grid-area: index;
   justify-content: end;
   text-align: end;
+}
+
+.category-pagination-next,
+.category-pagination-contact {
+  grid-area: next;
+  min-height: 3.75rem;
+  margin-block-start: 0.5rem;
+  padding: 0.75rem 1rem;
+  justify-content: space-between;
+  background: var(--ink);
+  color: white;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.category-pagination-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .bookmark-index {
@@ -401,6 +426,30 @@ h1 {
   font-size: 0.72rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+@media (min-width: 64rem) {
+  .bookmark-index {
+    inset-block: 50% auto;
+    inset-inline: auto max(0rem, calc((100vw - 88rem) / 2 - 2.75rem));
+    translate: 0 -50%;
+  }
+
+  .bookmark-index summary {
+    width: 2.75rem;
+    min-width: 2.75rem;
+    height: 7rem;
+    padding: 1rem 0;
+    border-inline-start: 0;
+    border-radius: 0 0.2rem 0.2rem 0;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+  }
+
+  .bookmark-panel {
+    inset: 50% calc(100% + 0.5rem) auto auto;
+    translate: 0 -50%;
+  }
 }
 
 .photo-viewer {
@@ -509,6 +558,35 @@ h1 {
     grid-column: 1 / -1;
     width: min(72%, 58rem);
     justify-self: center;
+  }
+
+  .category-pagination {
+    grid-template-areas: "previous index next";
+    grid-template-columns: 1fr auto 1fr;
+    gap: 0.5rem;
+    padding-block-start: 0;
+  }
+
+  .category-pagination-index {
+    justify-content: center;
+    text-align: start;
+  }
+
+  .category-pagination-next,
+  .category-pagination-contact {
+    min-height: 3.5rem;
+    margin-block-start: 0;
+    padding: 0;
+    justify-content: end;
+    background: transparent;
+    color: inherit;
+    font-weight: inherit;
+    text-align: end;
+    text-decoration: underline;
+  }
+
+  .category-pagination-label {
+    display: none;
   }
 }
 

@@ -11,7 +11,6 @@ export async function getAlbumNavigation(): Promise<NavigationItem[]> {
 
   return [
     { href: '/sobre-mi/', label: 'Quién soy', kind: 'section' },
-    { href: '/portfolio/', label: 'Portfolio', kind: 'section' },
     ...categories.map(({ data }) => ({
       href: `/portfolio/${data.slug}/`,
       label: data.title,

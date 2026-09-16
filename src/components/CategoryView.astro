@@ -31,17 +31,20 @@ const { title, description, photos } = category.data;
 
   <nav class="category-pagination" aria-label="Recorrido entre categorías">
     {previous ? (
-      <a rel="prev" href={`/portfolio/${previous.data.slug}/`}>
+      <a class="category-pagination-previous" rel="prev" href={`/portfolio/${previous.data.slug}/`}>
         <span aria-hidden="true">←</span> {previous.data.title}
       </a>
-    ) : <span></span>}
-    <a href="/portfolio/">Índice</a>
+    ) : <span class="category-pagination-placeholder" aria-hidden="true"></span>}
+    <a class="category-pagination-index" href="/portfolio/">Índice</a>
     {next ? (
-      <a rel="next" href={`/portfolio/${next.data.slug}/`}>
-        {next.data.title} <span aria-hidden="true">→</span>
+      <a class="category-pagination-next" rel="next" href={`/portfolio/${next.data.slug}/`}>
+        <span class="category-pagination-label">Siguiente categoría</span>
+        <span>{next.data.title} <span aria-hidden="true">→</span></span>
       </a>
     ) : (
-      <a href="/contacto/">Contacto <span aria-hidden="true">→</span></a>
+      <a class="category-pagination-contact" href="/contacto/">
+        Contacto <span aria-hidden="true">→</span>
+      </a>
     )}
   </nav>
 </article>
