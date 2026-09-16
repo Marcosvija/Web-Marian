@@ -49,6 +49,40 @@ test('the photo viewer supports URL state, keyboard navigation and focus restora
   await expect(page).not.toHaveURL(/foto=/);
 });
 
+test('the photo viewer changes photo after a horizontal touch swipe', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium', 'Touch regression runs on mobile Chromium.');
+
+  await page.goto('/portfolio/categoria-de-prueba/');
+  await page.getByRole('link', { name: 'Ampliar: Patrón geométrico de prueba uno' }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'Visor de fotografías' });
+  const image = dialog.getByRole('img');
+  const box = await image.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+
+  const y = box.y + box.height / 2;
+  const startX = box.x + box.width * 0.75;
+  const endX = box.x + box.width * 0.25;
+  const cdp = await page.context().newCDPSession(page);
+
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x: startX, y }],
+  });
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchMove',
+    touchPoints: [{ x: endX, y }],
+  });
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchEnd',
+    touchPoints: [],
+  });
+
+  await expect(image).toHaveAttribute('alt', 'Patrón geométrico de prueba dos');
+  await expect(page).toHaveURL(/foto=foto-prueba-dos/);
+});
+
 test('critical routes have no automatically detectable accessibility violations', async ({ page }) => {
   for (const route of ['/', '/portfolio/', '/portfolio/categoria-de-prueba/', '/contacto/']) {
     await page.goto(route, { waitUntil: 'networkidle' });

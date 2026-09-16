@@ -11,7 +11,7 @@
       <span aria-hidden="true">←</span>
     </button>
 
-    <img class="viewer-image" data-viewer-image alt="" />
+    <img class="viewer-image" data-viewer-image alt="" style="touch-action: pan-y;" />
 
     <button class="viewer-control viewer-next" type="button" data-viewer-next aria-label="Fotografía siguiente">
       <span aria-hidden="true">→</span>
@@ -33,6 +33,7 @@
     const close = viewer.querySelector<HTMLButtonElement>('.viewer-close');
     let currentIndex = 0;
     let opener: HTMLAnchorElement | null = null;
+    let activePointerId: number | null = null;
     let pointerStartX: number | null = null;
 
     const updateUrl = (photoId?: string) => {
@@ -71,6 +72,11 @@
       close?.focus();
     };
 
+    const resetPointer = () => {
+      activePointerId = null;
+      pointerStartX = null;
+    };
+
     triggers.forEach((trigger, index) => {
       trigger.addEventListener('click', (event) => {
         event.preventDefault();
@@ -92,19 +98,27 @@
       }
     });
 
-    viewer.addEventListener('pointerdown', (event) => {
+    image?.addEventListener('pointerdown', (event) => {
+      if (!event.isPrimary) return;
+      activePointerId = event.pointerId;
       pointerStartX = event.clientX;
+      image.setPointerCapture(event.pointerId);
     });
 
-    viewer.addEventListener('pointerup', (event) => {
-      if (pointerStartX === null) return;
+    image?.addEventListener('pointerup', (event) => {
+      if (pointerStartX === null || activePointerId !== event.pointerId) return;
       const distance = event.clientX - pointerStartX;
-      pointerStartX = null;
+      resetPointer();
       if (Math.abs(distance) < 60) return;
       showPhoto(currentIndex + (distance < 0 ? 1 : -1));
     });
 
+    image?.addEventListener('pointercancel', (event) => {
+      if (activePointerId === event.pointerId) resetPointer();
+    });
+
     viewer.addEventListener('close', () => {
+      resetPointer();
       updateUrl();
       opener?.focus();
       opener = null;
