@@ -2,6 +2,8 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
@@ -23,18 +25,14 @@ const CHECK_DEFINITIONS = [
     category: 'setup',
     purpose: 'Install locked npm dependencies reproducibly',
     outcomeEnv: 'CI_OUTCOME_DEPENDENCIES',
-    evidence: [
-      { kind: 'log', path: 'npm-ci.log' },
-    ],
+    evidence: [{ kind: 'log', path: 'npm-ci.log' }],
   },
   {
     id: 'astro-check',
     category: 'static-analysis',
     purpose: 'Validate Astro and TypeScript structure',
     outcomeEnv: 'CI_OUTCOME_ASTRO',
-    evidence: [
-      { kind: 'log', path: 'astro-check.log' },
-    ],
+    evidence: [{ kind: 'log', path: 'astro-check.log' }],
   },
   {
     id: 'unit-tests',
@@ -51,9 +49,7 @@ const CHECK_DEFINITIONS = [
     category: 'setup',
     purpose: 'Install Chromium and system dependencies for Playwright',
     outcomeEnv: 'CI_OUTCOME_BROWSER',
-    evidence: [
-      { kind: 'log', path: 'playwright-install.log' },
-    ],
+    evidence: [{ kind: 'log', path: 'playwright-install.log' }],
   },
   {
     id: 'browser-tests',
@@ -71,9 +67,7 @@ const CHECK_DEFINITIONS = [
     category: 'build',
     purpose: 'Build the production site',
     outcomeEnv: 'CI_OUTCOME_BUILD',
-    evidence: [
-      { kind: 'log', path: 'build.log' },
-    ],
+    evidence: [{ kind: 'log', path: 'build.log' }],
   },
 ];
 
@@ -97,6 +91,19 @@ function toPositiveInteger(value) {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+function hasUploadableContent(path) {
+  const stats = statSync(path);
+  if (!stats.isDirectory()) return true;
+
+  return readdirSync(path, { withFileTypes: true }).some((entry) => {
+    if (entry.name.startsWith('.')) return false;
+
+    const childPath = resolve(path, entry.name);
+    if (entry.isDirectory()) return hasUploadableContent(childPath);
+    return entry.isFile();
+  });
+}
+
 function collectExistingEvidence(baseDir, evidenceDir, definitions) {
   return definitions.flatMap((item) => {
     const artifactPath = item.path.startsWith('../')
@@ -104,7 +111,7 @@ function collectExistingEvidence(baseDir, evidenceDir, definitions) {
       : `${evidenceDir}/${item.path}`;
     const localPath = resolve(baseDir, artifactPath);
 
-    if (!existsSync(localPath)) {
+    if (!existsSync(localPath) || !hasUploadableContent(localPath)) {
       return [];
     }
 
@@ -142,19 +149,13 @@ export function buildManifest(env = process.env, options = {}) {
       category: definition.category,
       purpose: definition.purpose,
       conclusion: normalizeConclusion(env[definition.outcomeEnv]),
-      evidence: collectExistingEvidence(
-        baseDir,
-        evidenceDir,
-        definition.evidence,
-      ),
+      evidence: collectExistingEvidence(baseDir, evidenceDir, definition.evidence),
     })),
   };
 }
 
 function addError(errors, condition, message) {
-  if (condition) {
-    errors.push(message);
-  }
+  if (condition) errors.push(message);
 }
 
 function validateEvidencePath(errors, baseDir, item, checkId) {
@@ -218,11 +219,7 @@ export function validateManifest(manifest, options = {}) {
     typeof manifest.head_sha !== 'string' || !SHA_PATTERN.test(manifest.head_sha),
     'head_sha must be a full 40-character SHA',
   );
-  addError(
-    errors,
-    manifest.target_sha !== manifest.head_sha,
-    'target_sha must equal head_sha',
-  );
+  addError(errors, manifest.target_sha !== manifest.head_sha, 'target_sha must equal head_sha');
   addError(
     errors,
     !Number.isSafeInteger(manifest.run_id) || manifest.run_id <= 0,
@@ -298,11 +295,7 @@ export function validateManifest(manifest, options = {}) {
         continue;
       }
 
-      addError(
-        errors,
-        typeof check.id !== 'string' || check.id.length === 0,
-        'each check requires an id',
-      );
+      addError(errors, typeof check.id !== 'string' || check.id.length === 0, 'each check requires an id');
       addError(
         errors,
         typeof check.category !== 'string' || check.category.length === 0,
@@ -318,11 +311,7 @@ export function validateManifest(manifest, options = {}) {
         !ALLOWED_CONCLUSIONS.has(check.conclusion),
         `check ${check.id ?? '<unknown>'}: unsupported conclusion ${String(check.conclusion)}`,
       );
-      addError(
-        errors,
-        ids.has(check.id),
-        `duplicate check id: ${check.id}`,
-      );
+      addError(errors, ids.has(check.id), `duplicate check id: ${check.id}`);
       ids.add(check.id);
 
       addError(
@@ -355,9 +344,7 @@ function readManifest(path) {
 }
 
 function printErrors(errors) {
-  for (const error of errors) {
-    console.error(`- ${error}`);
-  }
+  for (const error of errors) console.error(`- ${error}`);
 }
 
 function runCli() {

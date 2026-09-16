@@ -31,8 +31,10 @@ function makeEnvironment() {
 function makeEvidenceDirectory() {
   const baseDir = mkdtempSync(join(tmpdir(), 'web-marian-ci-evidence-'));
   const evidenceDir = join(baseDir, 'ci-evidence');
+  const testResultsDir = join(baseDir, 'test-results');
   mkdirSync(evidenceDir, { recursive: true });
-  mkdirSync(join(baseDir, 'test-results'), { recursive: true });
+  mkdirSync(testResultsDir, { recursive: true });
+  writeFileSync(join(testResultsDir, '.last-run.json'), '{}\n', 'utf8');
 
   for (const filename of [
     'npm-ci.log',
@@ -79,6 +81,32 @@ describe('CI evidence manifest', () => {
     expect(manifest.semantics.qa_conclusion).toBeNull();
     expect(manifest.checks).toHaveLength(6);
     expect(manifest.checks.every((check) => check.conclusion === 'passed')).toBe(true);
+  });
+
+  it('does not reference Playwright attachments when only hidden runner state exists', () => {
+    const baseDir = makeEvidenceDirectory();
+    const manifest = buildManifest(makeEnvironment(), { baseDir });
+    const browserCheck = manifest.checks.find((check) => check.id === 'browser-tests');
+
+    expect(browserCheck.evidence).not.toContainEqual({
+      kind: 'attachments',
+      path: 'test-results',
+    });
+  });
+
+  it('references Playwright attachments when visible diagnostic files exist', () => {
+    const baseDir = makeEvidenceDirectory();
+    const traceDir = join(baseDir, 'test-results', 'failed-test');
+    mkdirSync(traceDir, { recursive: true });
+    writeFileSync(join(traceDir, 'trace.zip'), 'trace', 'utf8');
+
+    const manifest = buildManifest(makeEnvironment(), { baseDir });
+    const browserCheck = manifest.checks.find((check) => check.id === 'browser-tests');
+
+    expect(browserCheck.evidence).toContainEqual({
+      kind: 'attachments',
+      path: 'test-results',
+    });
   });
 
   it('rejects target attribution when target_sha and head_sha differ', () => {
