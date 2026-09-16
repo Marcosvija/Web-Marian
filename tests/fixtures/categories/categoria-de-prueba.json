@@ -1,0 +1,20 @@
+{
+  "slug": "categoria-de-prueba",
+  "title": "Categoría de prueba",
+  "description": "Contenido aislado para comprobar la plantilla reutilizable.",
+  "order": 1,
+  "photos": [
+    {
+      "id": "foto-prueba-uno",
+      "image": "../images/photo-one.svg",
+      "decorative": false,
+      "alt": "Patrón geométrico de prueba uno"
+    },
+    {
+      "id": "foto-prueba-dos",
+      "image": "../images/photo-two.svg",
+      "decorative": false,
+      "alt": "Patrón geométrico de prueba dos"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+---
+interface Props {
+  email?: string;
+  phone?: string;
+}
+
+const { email, phone } = Astro.props;
+---
+
+<section class="contact-view sheet" aria-labelledby="contact-title">
+  <header class="section-heading">
+    <p class="eyebrow">Cierre</p>
+    <h1 id="contact-title">Contacto</h1>
+  </header>
+
+  {(email || phone) ? (
+    <ul class="contact-list">
+      {email && <li><a href={`mailto:${email}`}>Correo electrónico</a></li>}
+      {phone && <li><a href={`tel:${phone}`}>Teléfono</a></li>}
+    </ul>
+  ) : (
+    <p class="empty-state" role="status">Canal de contacto pendiente de contenido.</p>
+  )}
+
+  <a class="text-action" href="/portfolio/">Volver al índice <span aria-hidden="true">→</span></a>
+</section>

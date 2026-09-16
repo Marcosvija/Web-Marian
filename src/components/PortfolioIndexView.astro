@@ -1,0 +1,34 @@
+---
+import type { CategoryEntry } from '../lib/categories';
+
+interface Props {
+  categories: CategoryEntry[];
+}
+
+const { categories } = Astro.props;
+---
+
+<section class="portfolio-index sheet" aria-labelledby="portfolio-title">
+  <header class="section-heading">
+    <p class="eyebrow">Índice</p>
+    <h1 id="portfolio-title">Atrapando instantes</h1>
+  </header>
+
+  {categories.length > 0 ? (
+    <ol class="category-list">
+      {categories.map(({ data }, index) => (
+        <li>
+          <a href={`/portfolio/${data.slug}/`}>
+            <span class="category-number">{String(index + 1).padStart(2, '0')}</span>
+            <span>{data.title}</span>
+            <span aria-hidden="true">→</span>
+          </a>
+        </li>
+      ))}
+    </ol>
+  ) : (
+    <p class="empty-state" role="status">La selección fotográfica se incorporará desde contenido validado.</p>
+  )}
+
+  <a class="text-action" href="/contacto/">Contacto <span aria-hidden="true">→</span></a>
+</section>

@@ -1,0 +1,36 @@
+---
+import type { CategoryEntry } from '../lib/categories';
+import ResponsiveImage from './ResponsiveImage.astro';
+
+interface Props {
+  photos: CategoryEntry['data']['photos'];
+}
+
+const { photos } = Astro.props;
+---
+
+<div class="photo-grid" aria-label="Selección fotográfica">
+  {photos.map((photo, index) => (
+    <figure id={`foto-${photo.id}`} class:list={['photo-card', { 'is-featured': index === 0 }]}>
+      {photo.decorative ? (
+        <ResponsiveImage src={photo.image} alt="" />
+      ) : (
+        <a
+          class="photo-trigger"
+          href={`?foto=${photo.id}#foto-${photo.id}`}
+          data-photo-trigger
+          data-photo-id={photo.id}
+          aria-label={`Ampliar: ${photo.alt}`}
+        >
+          <ResponsiveImage
+            src={photo.image}
+            alt={photo.alt}
+            loading={index === 0 ? 'eager' : 'lazy'}
+            fetchpriority={index === 0 ? 'high' : 'auto'}
+            sizes={index === 0 ? '(min-width: 56rem) 60vw, 100vw' : '(min-width: 56rem) 30vw, 100vw'}
+          />
+        </a>
+      )}
+    </figure>
+  ))}
+</div>
