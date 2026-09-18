@@ -85,7 +85,7 @@ a {
 
 .site-header {
   display: flex;
-  width: min(92vw, 96rem);
+  width: min(calc(100vw - 3rem), calc(177.7778dvh - 8.8889rem));
   min-height: 3rem;
   margin-inline: auto;
   align-items: center;
@@ -113,11 +113,10 @@ a {
 }
 
 .album-frame {
-  --album-spread-height: clamp(32rem, 82dvh, 54rem);
   container: album / inline-size;
   display: grid;
-  width: min(92vw, 96rem);
-  min-height: calc(100dvh - 6rem);
+  width: min(calc(100vw - 3rem), calc(177.7778dvh - 8.8889rem));
+  min-height: calc(100dvh - 5rem);
   margin-inline: auto;
   place-items: center;
 }
@@ -429,27 +428,30 @@ h1 {
   text-transform: uppercase;
 }
 
-@media (min-width: 64rem) {
-  .bookmark-index {
-    inset-block: 50% auto;
-    inset-inline: auto max(0rem, calc((100vw - 88rem) / 2 - 2.75rem));
-    translate: 0 -50%;
-  }
+@media (min-height: 38rem) {
+  @container album (min-width: 56rem) {
+    .bookmark-index {
+      position: absolute;
+      inset-block: 50% auto;
+      inset-inline: auto -2.75rem;
+      translate: 0 -50%;
+    }
 
-  .bookmark-index summary {
-    width: 2.75rem;
-    min-width: 2.75rem;
-    height: 7rem;
-    padding: 1rem 0;
-    border-inline-start: 0;
-    border-radius: 0 0.2rem 0.2rem 0;
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-  }
+    .bookmark-index summary {
+      width: 2.75rem;
+      min-width: 2.75rem;
+      height: 7rem;
+      padding: 1rem 0;
+      border-inline-start: 0;
+      border-radius: 0 0.2rem 0.2rem 0;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+    }
 
-  .bookmark-panel {
-    inset: 50% calc(100% + 0.5rem) auto auto;
-    translate: 0 -50%;
+    .bookmark-panel {
+      inset: 50% calc(100% + 0.5rem) auto auto;
+      translate: 0 -50%;
+    }
   }
 }
 

@@ -24,10 +24,9 @@ const isCover = Astro.url.pathname === '/';
       </a>
     </header>
 
-    <BookmarkIndex items={navigation} currentPath={Astro.url.pathname} />
-
     <main id="contenido" class="album-frame" tabindex="-1">
       <div class:list={['album-stage', { 'is-cover-stage': isCover }]}>
+        <BookmarkIndex items={navigation} currentPath={Astro.url.pathname} />
         <slot />
         <PageNavigation pages={pageSequence} currentPath={Astro.url.pathname} />
       </div>

@@ -38,19 +38,20 @@
 
     .album-stage.is-cover-stage {
       width: 50%;
-      max-width: 48rem;
     }
 
     .album-cover {
       width: 100%;
-      height: var(--album-spread-height);
+      height: auto;
       min-height: 0;
+      aspect-ratio: 8 / 9;
     }
 
     .album-spread {
       display: grid;
       width: 100%;
-      height: var(--album-spread-height);
+      height: auto;
+      aspect-ratio: 16 / 9;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       grid-template-rows: minmax(0, 1fr);
       gap: 0;

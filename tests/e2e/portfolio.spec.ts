@@ -123,22 +123,43 @@ test('reduced motion removes the page entrance animation', async ({ page }) => {
   expect(animationName).toBe('none');
 });
 
-test('the bookmark remains global navigation alongside physical page corners', async ({ page }) => {
+test('the bookmark remains global navigation and stays attached to the album edge', async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
-  await page.goto('/portfolio/categoria-de-prueba/');
 
-  const tab = page.locator('.bookmark-index summary');
+  for (const route of ['/', '/portfolio/categoria-de-prueba/']) {
+    await page.goto(route);
+
+    const stage = page.locator('.album-stage');
+    const tab = page.locator('.bookmark-index summary');
+    const stageBox = await stage.boundingBox();
+    const tabBox = await tab.boundingBox();
+
+    expect(stageBox, route).not.toBeNull();
+    expect(tabBox, route).not.toBeNull();
+    await expect(tab).toHaveCSS('writing-mode', 'vertical-rl');
+
+    const stageRight = (stageBox?.x ?? 0) + (stageBox?.width ?? 0);
+    expect(Math.abs((tabBox?.x ?? 0) - stageRight), route).toBeLessThan(3);
+    expect(
+      Math.abs(
+        ((tabBox?.y ?? 0) + (tabBox?.height ?? 0) / 2) -
+          ((stageBox?.y ?? 0) + (stageBox?.height ?? 0) / 2),
+      ),
+      route,
+    ).toBeLessThan(3);
+
+    await tab.click();
+    const panel = page.getByRole('navigation', { name: 'Índice del álbum' });
+    await expect(panel.getByRole('link', { name: 'Quién soy' })).toBeVisible();
+    await expect(panel.getByRole('link', { name: 'Contacto' })).toBeVisible();
+  }
+
+  await page.goto('/portfolio/categoria-de-prueba/');
   const pageNavigation = page.getByRole('navigation', { name: 'Recorrido entre páginas del álbum' });
   await expect(pageNavigation.getByRole('link', { name: 'Página anterior: Índice' })).toBeVisible();
   await expect(
     pageNavigation.getByRole('link', { name: 'Página siguiente: Segunda categoría de prueba' }),
   ).toBeVisible();
-  await expect(tab).toHaveCSS('writing-mode', 'vertical-rl');
-
-  await tab.click();
-  const panel = page.getByRole('navigation', { name: 'Índice del álbum' });
-  await expect(panel.getByRole('link', { name: 'Quién soy' })).toBeVisible();
-  await expect(panel.getByRole('link', { name: 'Contacto' })).toBeVisible();
 });
 
 test('touch navigation keeps semantic focus without drawing a frame around the album', async ({ page }, testInfo) => {
@@ -182,10 +203,7 @@ test('desktop interior is a two-page spread with content distributed across both
   expect(await right.locator('.category-list a').count()).toBeGreaterThan(0);
 });
 
-test('desktop spreads keep one stable viewport-sized geometry across sections', async ({ page }) => {
-  const viewport = { width: 1440, height: 900 };
-  await page.setViewportSize(viewport);
-
+test('desktop album scales proportionally with the useful viewport without a fixed visual cap', async ({ page }) => {
   const routes = [
     '/sobre-mi/',
     '/portfolio/',
@@ -193,61 +211,87 @@ test('desktop spreads keep one stable viewport-sized geometry across sections', 
     '/portfolio/segunda-categoria-de-prueba/',
     '/contacto/',
   ];
+  const viewports = [
+    { width: 1440, height: 900 },
+    { width: 2560, height: 1440 },
+  ];
+  const measuredWidths: number[] = [];
 
-  const expectedWidth = Math.min(viewport.width * 0.92, 96 * 16);
-  const expectedHeight = Math.min(Math.max(32 * 16, viewport.height * 0.82), 54 * 16);
-  let baseline: { width: number; height: number } | null = null;
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
 
-  for (const route of routes) {
-    await page.goto(route);
-
-    const spread = page.locator('[data-album-spread]');
-    const spreadBox = await spread.boundingBox();
-    expect(spreadBox, route).not.toBeNull();
-    if (!spreadBox) continue;
-
-    expect(Math.abs(spreadBox.width - expectedWidth), route).toBeLessThan(4);
-    expect(Math.abs(spreadBox.height - expectedHeight), route).toBeLessThan(4);
-    expect(Math.abs(spreadBox.x + spreadBox.width / 2 - viewport.width / 2), route).toBeLessThan(4);
-
-    if (!baseline) {
-      baseline = { width: spreadBox.width, height: spreadBox.height };
-    } else {
-      expect(Math.abs(spreadBox.width - baseline.width), route).toBeLessThan(2);
-      expect(Math.abs(spreadBox.height - baseline.height), route).toBeLessThan(2);
-    }
-
-    const pages = spread.locator('.album-page');
-    await expect(pages).toHaveCount(2);
-    const leftBox = await pages.nth(0).boundingBox();
-    const rightBox = await pages.nth(1).boundingBox();
-    expect(leftBox, route).not.toBeNull();
-    expect(rightBox, route).not.toBeNull();
-    expect(Math.abs((leftBox?.width ?? 0) - (rightBox?.width ?? 0)), route).toBeLessThan(2);
-    expect(Math.abs((leftBox?.height ?? 0) - spreadBox.height), route).toBeLessThan(2);
-    expect(Math.abs((rightBox?.height ?? 0) - spreadBox.height), route).toBeLessThan(2);
-
-    const overflow = await pages.evaluateAll((elements) =>
-      elements.map((element) => ({
-        clientHeight: element.clientHeight,
-        scrollHeight: element.scrollHeight,
-        clientWidth: element.clientWidth,
-        scrollWidth: element.scrollWidth,
-      })),
+    const expectedWidth = Math.min(
+      viewport.width - 48,
+      (viewport.height - 80) * (16 / 9),
     );
-    for (const metrics of overflow) {
-      expect(metrics.scrollHeight, route).toBeLessThanOrEqual(metrics.clientHeight + 2);
-      expect(metrics.scrollWidth, route).toBeLessThanOrEqual(metrics.clientWidth + 2);
+    const expectedHeight = expectedWidth * (9 / 16);
+    let baseline: { width: number; height: number } | null = null;
+
+    for (const route of routes) {
+      await page.goto(route);
+
+      const spread = page.locator('[data-album-spread]');
+      const spreadBox = await spread.boundingBox();
+      expect(spreadBox, `${route} @ ${viewport.width}x${viewport.height}`).not.toBeNull();
+      if (!spreadBox) continue;
+
+      expect(Math.abs(spreadBox.width - expectedWidth), route).toBeLessThan(4);
+      expect(Math.abs(spreadBox.height - expectedHeight), route).toBeLessThan(4);
+      expect(
+        Math.abs(spreadBox.width / spreadBox.height - 16 / 9),
+        route,
+      ).toBeLessThan(0.01);
+      expect(
+        Math.abs(spreadBox.x + spreadBox.width / 2 - viewport.width / 2),
+        route,
+      ).toBeLessThan(4);
+
+      if (!baseline) {
+        baseline = { width: spreadBox.width, height: spreadBox.height };
+      } else {
+        expect(Math.abs(spreadBox.width - baseline.width), route).toBeLessThan(2);
+        expect(Math.abs(spreadBox.height - baseline.height), route).toBeLessThan(2);
+      }
+
+      const pages = spread.locator('.album-page');
+      await expect(pages).toHaveCount(2);
+      const leftBox = await pages.nth(0).boundingBox();
+      const rightBox = await pages.nth(1).boundingBox();
+      expect(leftBox, route).not.toBeNull();
+      expect(rightBox, route).not.toBeNull();
+      expect(Math.abs((leftBox?.width ?? 0) - (rightBox?.width ?? 0)), route).toBeLessThan(2);
+      expect(Math.abs((leftBox?.height ?? 0) - spreadBox.height), route).toBeLessThan(2);
+      expect(Math.abs((rightBox?.height ?? 0) - spreadBox.height), route).toBeLessThan(2);
+
+      const overflow = await pages.evaluateAll((elements) =>
+        elements.map((element) => ({
+          clientHeight: element.clientHeight,
+          scrollHeight: element.scrollHeight,
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+        })),
+      );
+      for (const metrics of overflow) {
+        expect(metrics.scrollHeight, route).toBeLessThanOrEqual(metrics.clientHeight + 2);
+        expect(metrics.scrollWidth, route).toBeLessThanOrEqual(metrics.clientWidth + 2);
+      }
     }
+
+    expect(baseline).not.toBeNull();
+    measuredWidths.push(baseline?.width ?? 0);
+
+    await page.goto('/');
+    const coverBox = await page.locator('.album-cover').boundingBox();
+    expect(coverBox).not.toBeNull();
+    expect(Math.abs((coverBox?.height ?? 0) - expectedHeight)).toBeLessThan(2);
+    expect(Math.abs((coverBox?.width ?? 0) - expectedWidth / 2)).toBeLessThan(3);
+    expect(
+      Math.abs((coverBox?.x ?? 0) + (coverBox?.width ?? 0) / 2 - viewport.width / 2),
+    ).toBeLessThan(4);
   }
 
-  expect(baseline).not.toBeNull();
-  await page.goto('/');
-  const coverBox = await page.locator('.album-cover').boundingBox();
-  expect(coverBox).not.toBeNull();
-  expect(Math.abs((coverBox?.height ?? 0) - (baseline?.height ?? 0))).toBeLessThan(2);
-  expect(Math.abs((coverBox?.width ?? 0) - (baseline?.width ?? 0) / 2)).toBeLessThan(3);
-  expect(Math.abs((coverBox?.x ?? 0) + (coverBox?.width ?? 0) / 2 - viewport.width / 2)).toBeLessThan(4);
+  expect(measuredWidths[1] ?? 0).toBeGreaterThan((measuredWidths[0] ?? 0) * 1.5);
+  expect(measuredWidths[1] ?? 0).toBeGreaterThan(96 * 16);
 });
 
 test('double spread reflows when useful width or height is insufficient', async ({ page }) => {
