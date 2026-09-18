@@ -62,7 +62,7 @@
   background: rgb(88 56 47 / 0.06);
 }
 
-@media (min-width: 64rem) {
+@media (min-width: 96rem) {
   .page-navigation {
     position: fixed;
     inset: 0;
@@ -146,4 +146,9 @@
   .page-navigation-control .page-navigation-copy {
     transition: none;
   }
+}
+
+
+.album-frame[data-page-focus-origin="pointer"]:focus {
+  outline: none;
 }
