@@ -6,29 +6,50 @@ interface Props {
 }
 
 const { categories } = Astro.props;
+const midpoint = Math.ceil(categories.length / 2);
+const leftCategories = categories.slice(0, midpoint);
+const rightCategories = categories.slice(midpoint);
 ---
 
-<section class="portfolio-index sheet" aria-labelledby="portfolio-title">
-  <header class="section-heading">
-    <p class="eyebrow">Índice</p>
-    <h1 id="portfolio-title">Atrapando instantes</h1>
-  </header>
+<section class="portfolio-index sheet album-spread" aria-labelledby="portfolio-title" data-album-spread>
+  <div class="album-page album-page-left">
+    <header class="section-heading">
+      <p class="eyebrow">Índice</p>
+      <h1 id="portfolio-title">Atrapando instantes</h1>
+    </header>
 
-  {categories.length > 0 ? (
-    <ol class="category-list">
-      {categories.map(({ data }, index) => (
-        <li>
-          <a href={`/portfolio/${data.slug}/`}>
-            <span class="category-number">{String(index + 1).padStart(2, '0')}</span>
-            <span>{data.title}</span>
-            <span aria-hidden="true">→</span>
-          </a>
-        </li>
-      ))}
-    </ol>
-  ) : (
-    <p class="empty-state" role="status">La selección fotográfica se incorporará desde contenido validado.</p>
-  )}
+    {categories.length > 0 ? (
+      <ol class="category-list" aria-label="Primera parte del índice">
+        {leftCategories.map(({ data }, index) => (
+          <li>
+            <a href={`/portfolio/${data.slug}/`}>
+              <span class="category-number">{String(index + 1).padStart(2, '0')}</span>
+              <span>{data.title}</span>
+              <span aria-hidden="true">→</span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    ) : (
+      <p class="empty-state" role="status">La selección fotográfica se incorporará desde contenido validado.</p>
+    )}
+  </div>
 
-  <a class="text-action" href="/contacto/">Contacto <span aria-hidden="true">→</span></a>
+  <div class="album-page album-page-right">
+    {rightCategories.length > 0 && (
+      <ol class="category-list category-list-continuation" start={midpoint + 1} aria-label="Segunda parte del índice">
+        {rightCategories.map(({ data }, index) => (
+          <li>
+            <a href={`/portfolio/${data.slug}/`}>
+              <span class="category-number">{String(midpoint + index + 1).padStart(2, '0')}</span>
+              <span>{data.title}</span>
+              <span aria-hidden="true">→</span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    )}
+
+    <a class="text-action" href="/contacto/">Contacto <span aria-hidden="true">→</span></a>
+  </div>
 </section>

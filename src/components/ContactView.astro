@@ -7,20 +7,24 @@ interface Props {
 const { email, phone } = Astro.props;
 ---
 
-<section class="contact-view sheet" aria-labelledby="contact-title">
-  <header class="section-heading">
-    <p class="eyebrow">Cierre</p>
-    <h1 id="contact-title">Contacto</h1>
-  </header>
+<section class="contact-view sheet album-spread" aria-labelledby="contact-title" data-album-spread>
+  <div class="album-page album-page-left">
+    <header class="section-heading">
+      <p class="eyebrow">Cierre</p>
+      <h1 id="contact-title">Contacto</h1>
+    </header>
+  </div>
 
-  {(email || phone) ? (
-    <ul class="contact-list">
-      {email && <li><a href={`mailto:${email}`}>Correo electrónico</a></li>}
-      {phone && <li><a href={`tel:${phone}`}>Teléfono</a></li>}
-    </ul>
-  ) : (
-    <p class="empty-state" role="status">Canal de contacto pendiente de contenido.</p>
-  )}
+  <div class="album-page album-page-right">
+    {(email || phone) ? (
+      <ul class="contact-list">
+        {email && <li><a href={`mailto:${email}`}>Correo electrónico</a></li>}
+        {phone && <li><a href={`tel:${phone}`}>Teléfono</a></li>}
+      </ul>
+    ) : (
+      <p class="empty-state" role="status">Canal de contacto pendiente de contenido.</p>
+    )}
 
-  <a class="text-action" href="/portfolio/">Volver al índice <span aria-hidden="true">→</span></a>
+    <a class="text-action" href="/portfolio/">Volver al índice <span aria-hidden="true">→</span></a>
+  </div>
 </section>

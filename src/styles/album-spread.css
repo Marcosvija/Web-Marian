@@ -1,0 +1,190 @@
+.album-cover {
+  border-color: rgb(71 60 51 / 0.34);
+  border-width: 0.2rem 0.45rem 0.45rem 0.7rem;
+  background:
+    linear-gradient(90deg, rgb(88 56 47 / 0.1), transparent 12%),
+    var(--paper-raised);
+  box-shadow:
+    0.7rem 1.2rem 0 rgb(83 66 54 / 0.08),
+    0 1.5rem 3.8rem rgb(42 34 28 / 0.2);
+}
+
+.album-cover::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: clamp(1.1rem, 4vw, 3.25rem);
+  width: 0.2rem;
+  background: rgb(88 56 47 / 0.15);
+  box-shadow:
+    0.35rem 0 0 rgb(255 255 255 / 0.55),
+    0.65rem 0 1.2rem rgb(42 34 28 / 0.12);
+  pointer-events: none;
+}
+
+.album-spread {
+  position: relative;
+}
+
+.album-page {
+  display: contents;
+}
+
+@container album (min-width: 56rem) {
+  .album-spread {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0;
+    padding: 0;
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow:
+      0 1.5rem 3.8rem rgb(42 34 28 / 0.16),
+      0 0.35rem 0 rgb(83 66 54 / 0.08);
+    perspective: 1800px;
+    isolation: isolate;
+  }
+
+  .album-spread::after {
+    content: attr(data-turn-label);
+    position: absolute;
+    inset-block: 0;
+    z-index: 0;
+    display: grid;
+    width: 50%;
+    padding: 2rem 2.5rem 5.5rem;
+    place-items: end center;
+    border: 1px solid rgb(71 60 51 / 0.2);
+    background:
+      linear-gradient(110deg, rgb(88 56 47 / 0.045), transparent 22%),
+      var(--paper-raised);
+    color: var(--muted);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1rem;
+    font-style: italic;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+  }
+
+  .album-spread[data-turn-direction="previous"]::after {
+    inset-inline: 0 auto;
+    opacity: 1;
+  }
+
+  .album-spread[data-turn-direction="next"]::after {
+    inset-inline: auto 0;
+    opacity: 1;
+  }
+
+  .album-page {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    min-width: 0;
+    min-height: min(46rem, calc(100vh - 7rem));
+    padding: clamp(2rem, 4cqi, 4.5rem);
+    padding-block-end: clamp(5.5rem, 8cqi, 7rem);
+    flex-direction: column;
+    background:
+      linear-gradient(100deg, rgb(255 255 255 / 0.28), transparent 18%),
+      var(--paper-raised);
+    border: 1px solid rgb(71 60 51 / 0.2);
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+    will-change: transform;
+  }
+
+  .album-page::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    width: clamp(1.2rem, 3cqi, 2.8rem);
+    pointer-events: none;
+  }
+
+  .album-page::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(90deg, rgb(88 56 47 / 0.09), transparent 26%),
+      var(--paper-raised);
+    transform: rotateY(180deg);
+    backface-visibility: hidden;
+    pointer-events: none;
+  }
+
+  .album-page-left {
+    border-radius: 0.35rem 0 0 0.35rem;
+    box-shadow:
+      inset -1.8rem 0 2.4rem -2.1rem rgb(42 34 28 / 0.34),
+      inset 0.35rem 0 0.9rem -0.55rem rgb(255 255 255 / 0.9);
+    transform-origin: right center;
+  }
+
+  .album-page-left::before {
+    inset-inline: auto 0;
+    background: linear-gradient(90deg, transparent, rgb(42 34 28 / 0.16));
+  }
+
+  .album-page-right {
+    border-radius: 0 0.35rem 0.35rem 0;
+    box-shadow:
+      inset 1.8rem 0 2.4rem -2.1rem rgb(42 34 28 / 0.34),
+      inset -0.35rem 0 0.9rem -0.55rem rgb(255 255 255 / 0.9);
+    transform-origin: left center;
+  }
+
+  .album-page-right::before {
+    inset-inline: 0 auto;
+    background: linear-gradient(90deg, rgb(42 34 28 / 0.16), transparent);
+  }
+
+  .album-page.is-page-turning {
+    z-index: 4;
+    user-select: none;
+  }
+
+  .about-view .album-page-right,
+  .contact-view .album-page-right,
+  .portfolio-index .album-page-right {
+    justify-content: center;
+  }
+
+  .about-view .text-action,
+  .contact-view .text-action,
+  .portfolio-index .text-action {
+    margin-block-start: auto;
+  }
+
+  .portfolio-index .category-list-continuation {
+    margin-block-start: 0;
+  }
+
+  .category-view .album-page-left .photo-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .category-view .album-page-right .photo-grid {
+    align-content: start;
+  }
+
+  .category-view .album-page-right .photo-card.is-featured {
+    grid-row: auto;
+  }
+
+  .category-view .album-page-right .photo-card:nth-child(4n + 4) {
+    grid-column: auto;
+    width: auto;
+    justify-self: stretch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .album-spread::after,
+  .album-page {
+    transition: none !important;
+  }
+}

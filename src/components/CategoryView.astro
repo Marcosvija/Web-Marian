@@ -11,21 +11,28 @@ interface Props {
 
 const { category } = Astro.props;
 const { title, description, photos } = category.data;
+const featuredPhotos = photos.slice(0, 1);
+const secondaryPhotos = photos.slice(1);
 ---
 
-<article class="category-view sheet" aria-labelledby="category-title">
-  <header class="section-heading category-heading">
-    <p class="eyebrow">Categoría fotográfica</p>
-    <h1 id="category-title">{title}</h1>
-    {description && <p class="category-description">{description}</p>}
-  </header>
+<article class="category-view sheet album-spread" aria-labelledby="category-title" data-album-spread>
+  <div class="album-page album-page-left">
+    <header class="section-heading category-heading">
+      <p class="eyebrow">Categoría fotográfica</p>
+      <h1 id="category-title">{title}</h1>
+      {description && <p class="category-description">{description}</p>}
+    </header>
 
-  {photos.length > 0 ? (
-    <>
-      <PhotoGrid photos={photos} />
-      <PhotoViewer />
-    </>
-  ) : (
-    <p class="empty-state" role="status">Esta categoría todavía no contiene fotografías.</p>
-  )}
+    {featuredPhotos.length > 0 && <PhotoGrid photos={featuredPhotos} />}
+  </div>
+
+  <div class="album-page album-page-right">
+    {secondaryPhotos.length > 0 ? (
+      <PhotoGrid photos={secondaryPhotos} />
+    ) : photos.length === 0 ? (
+      <p class="empty-state" role="status">Esta categoría todavía no contiene fotografías.</p>
+    ) : null}
+  </div>
+
+  {photos.length > 0 && <PhotoViewer />}
 </article>

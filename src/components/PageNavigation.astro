@@ -21,6 +21,7 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
         rel="prev"
         aria-label={`Página anterior: ${previous.label}`}
         data-page-direction="previous"
+        data-page-destination={previous.label}
       >
         <span class="page-navigation-arrow" aria-hidden="true">←</span>
         <span class="page-navigation-copy">
@@ -37,6 +38,7 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
         rel="next"
         aria-label={`Página siguiente: ${next.label}`}
         data-page-direction="next"
+        data-page-destination={next.label}
       >
         <span class="page-navigation-copy">
           <span class="page-navigation-kicker">Página siguiente</span>
@@ -50,6 +52,7 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
 
 <script>
   const focusKey = 'album-page-navigation-focus';
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   const focusDestination = () => {
     const focusOrigin = sessionStorage.getItem(focusKey);
@@ -66,11 +69,170 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
     }, { once: true });
   };
 
+  const getSpread = () => document.querySelector<HTMLElement>('[data-album-spread]');
+
+  const getActivePage = (direction: 'previous' | 'next') => {
+    const spread = getSpread();
+    if (!spread) return null;
+    return spread.querySelector<HTMLElement>(
+      direction === 'next' ? '.album-page-right' : '.album-page-left',
+    );
+  };
+
+  const physicalTurnAvailable = () => {
+    if (reducedMotion.matches) return false;
+    const spread = getSpread();
+    const page = spread?.querySelector<HTMLElement>('.album-page');
+    if (!spread || !page) return false;
+
+    const spreadWidth = spread.getBoundingClientRect().width;
+    const pageWidth = page.getBoundingClientRect().width;
+    return spreadWidth > 0 && pageWidth > 0 && pageWidth < spreadWidth * 0.75;
+  };
+
+  const prepareTurn = (
+    link: HTMLAnchorElement,
+    direction: 'previous' | 'next',
+    progress: number,
+  ) => {
+    const spread = getSpread();
+    const page = getActivePage(direction);
+    if (!spread || !page) return;
+
+    const clamped = Math.max(0, Math.min(progress, 1));
+    const angle = clamped * 180 * (direction === 'next' ? -1 : 1);
+
+    spread.dataset.turnDirection = direction;
+    spread.dataset.turnLabel = link.dataset.pageDestination ?? '';
+    spread.style.setProperty('--turn-progress', String(clamped));
+    page.classList.add('is-page-turning');
+    page.style.transition = 'none';
+    page.style.transform = `rotateY(${angle}deg)`;
+  };
+
+  const clearTurn = (direction: 'previous' | 'next') => {
+    const spread = getSpread();
+    const page = getActivePage(direction);
+    if (!spread || !page) return;
+
+    page.style.transition = 'transform 180ms ease-out';
+    page.style.transform = 'rotateY(0deg)';
+
+    window.setTimeout(() => {
+      page.classList.remove('is-page-turning');
+      page.style.removeProperty('transition');
+      page.style.removeProperty('transform');
+      spread.style.removeProperty('--turn-progress');
+      delete spread.dataset.turnDirection;
+      delete spread.dataset.turnLabel;
+    }, 190);
+  };
+
+  const completeTurn = (
+    link: HTMLAnchorElement,
+    direction: 'previous' | 'next',
+  ) => {
+    const spread = getSpread();
+    const page = getActivePage(direction);
+    if (!spread || !page) {
+      sessionStorage.setItem(focusKey, 'pointer');
+      window.location.assign(link.href);
+      return;
+    }
+
+    const angle = direction === 'next' ? -180 : 180;
+    page.style.transition = 'transform 320ms cubic-bezier(0.32, 0.72, 0, 1)';
+    page.style.transform = `rotateY(${angle}deg)`;
+    spread.style.setProperty('--turn-progress', '1');
+    sessionStorage.setItem(focusKey, 'pointer');
+
+    window.setTimeout(() => {
+      window.location.assign(link.href);
+    }, 320);
+  };
+
   focusDestination();
 
   document.querySelectorAll<HTMLAnchorElement>('[data-page-navigation] a').forEach((link) => {
+    const direction = link.dataset.pageDirection === 'previous' ? 'previous' : 'next';
+    let pointerId: number | null = null;
+    let startX = 0;
+    let dragging = false;
+    let suppressClick = false;
+
     link.addEventListener('click', (event) => {
+      if (suppressClick) {
+        event.preventDefault();
+        suppressClick = false;
+        return;
+      }
       sessionStorage.setItem(focusKey, event.detail === 0 ? 'keyboard' : 'pointer');
+    });
+
+    link.addEventListener('keydown', (event) => {
+      if (event.key !== ' ' || event.repeat) return;
+      event.preventDefault();
+      sessionStorage.setItem(focusKey, 'keyboard');
+      window.location.assign(link.href);
+    });
+
+    link.addEventListener('pointerdown', (event) => {
+      if (!physicalTurnAvailable() || !event.isPrimary || event.button !== 0) return;
+      pointerId = event.pointerId;
+      startX = event.clientX;
+      dragging = false;
+      suppressClick = false;
+      link.setPointerCapture(event.pointerId);
+    });
+
+    link.addEventListener('pointermove', (event) => {
+      if (pointerId !== event.pointerId) return;
+
+      const rawDistance = event.clientX - startX;
+      const distance = direction === 'next' ? -rawDistance : rawDistance;
+      if (!dragging && Math.abs(rawDistance) < 8) return;
+
+      dragging = true;
+      event.preventDefault();
+      const page = getActivePage(direction);
+      const pageWidth = page?.getBoundingClientRect().width ?? 1;
+      prepareTurn(link, direction, Math.max(0, distance) / pageWidth);
+    });
+
+    link.addEventListener('pointerup', (event) => {
+      if (pointerId !== event.pointerId) return;
+
+      const rawDistance = event.clientX - startX;
+      const distance = direction === 'next' ? -rawDistance : rawDistance;
+      const page = getActivePage(direction);
+      const pageWidth = page?.getBoundingClientRect().width ?? 1;
+      const progress = Math.max(0, distance) / pageWidth;
+
+      if (link.hasPointerCapture(event.pointerId)) link.releasePointerCapture(event.pointerId);
+      pointerId = null;
+
+      if (!dragging) return;
+
+      suppressClick = true;
+      dragging = false;
+      event.preventDefault();
+
+      if (progress >= 0.4) {
+        completeTurn(link, direction);
+      } else {
+        clearTurn(direction);
+      }
+    });
+
+    link.addEventListener('pointercancel', (event) => {
+      if (pointerId !== event.pointerId) return;
+      if (link.hasPointerCapture(event.pointerId)) link.releasePointerCapture(event.pointerId);
+      pointerId = null;
+      if (dragging) {
+        suppressClick = true;
+        dragging = false;
+        clearTurn(direction);
+      }
     });
   });
 

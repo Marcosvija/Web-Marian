@@ -123,34 +123,22 @@ test('reduced motion removes the page entrance animation', async ({ page }) => {
   expect(animationName).toBe('none');
 });
 
-test('the bookmark remains an album-side tab on desktop without replacing page continuity', async ({ page }) => {
+test('the bookmark remains global navigation alongside physical page corners', async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto('/portfolio/categoria-de-prueba/');
 
-  const album = page.locator('.album-frame');
   const tab = page.locator('.bookmark-index summary');
   const pageNavigation = page.getByRole('navigation', { name: 'Recorrido entre páginas del álbum' });
-  const previous = pageNavigation.getByRole('link', { name: 'Página anterior: Índice' });
-  const next = pageNavigation.getByRole('link', { name: 'Página siguiente: Segunda categoría de prueba' });
-  const albumBox = await album.boundingBox();
-  const tabBox = await tab.boundingBox();
-  const previousBox = await previous.boundingBox();
-  const nextBox = await next.boundingBox();
-
-  expect(albumBox).not.toBeNull();
-  expect(tabBox).not.toBeNull();
-  expect(previousBox).not.toBeNull();
-  expect(nextBox).not.toBeNull();
-  expect((previousBox?.x ?? 0) + (previousBox?.width ?? 0)).toBeLessThanOrEqual(albumBox?.x ?? 0);
-  expect(nextBox?.x ?? 0).toBeGreaterThanOrEqual((albumBox?.x ?? 0) + (albumBox?.width ?? 0));
+  await expect(pageNavigation.getByRole('link', { name: 'Página anterior: Índice' })).toBeVisible();
+  await expect(
+    pageNavigation.getByRole('link', { name: 'Página siguiente: Segunda categoría de prueba' }),
+  ).toBeVisible();
   await expect(tab).toHaveCSS('writing-mode', 'vertical-rl');
 
   await tab.click();
-  const panelBox = await page
-    .getByRole('navigation', { name: 'Índice del álbum' })
-    .boundingBox();
-  expect(panelBox).not.toBeNull();
-  expect((panelBox?.x ?? 0) + (panelBox?.width ?? 0)).toBeLessThan(tabBox?.x ?? 0);
+  const panel = page.getByRole('navigation', { name: 'Índice del álbum' });
+  await expect(panel.getByRole('link', { name: 'Quién soy' })).toBeVisible();
+  await expect(panel.getByRole('link', { name: 'Contacto' })).toBeVisible();
 });
 
 test('touch navigation keeps semantic focus without drawing a frame around the album', async ({ page }, testInfo) => {
@@ -171,44 +159,105 @@ test('touch navigation keeps semantic focus without drawing a frame around the a
   await expect(main).toHaveCSS('outline-style', 'none');
 });
 
-test('standard desktop keeps resting side tabs outside the album', async ({ page }) => {
+test('desktop interior is a two-page spread with content distributed across both surfaces', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto('/contacto/');
+  await page.goto('/portfolio/');
 
-  const albumBox = await page.locator('.album-frame').boundingBox();
-  const previous = page
-    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
-    .getByRole('link', { name: /Página anterior:/ });
-  const previousBox = await previous.boundingBox();
+  const spread = page.locator('[data-album-spread]');
+  const left = spread.locator('.album-page-left');
+  const right = spread.locator('.album-page-right');
+  const spreadBox = await spread.boundingBox();
+  const leftBox = await left.boundingBox();
+  const rightBox = await right.boundingBox();
 
-  expect(albumBox).not.toBeNull();
-  expect(previousBox).not.toBeNull();
-  expect((previousBox?.x ?? 0) + (previousBox?.width ?? 0)).toBeLessThanOrEqual(albumBox?.x ?? 0);
+  expect(spreadBox).not.toBeNull();
+  expect(leftBox).not.toBeNull();
+  expect(rightBox).not.toBeNull();
+  expect(leftBox?.width ?? 0).toBeGreaterThan(300);
+  expect(rightBox?.width ?? 0).toBeGreaterThan(300);
+  expect(Math.abs((leftBox?.width ?? 0) - (rightBox?.width ?? 0))).toBeLessThan(4);
+  expect(Math.abs(((leftBox?.x ?? 0) + (leftBox?.width ?? 0)) - (rightBox?.x ?? 0))).toBeLessThan(4);
+
+  await expect(left.getByRole('link', { name: 'Categoría de prueba', exact: true })).toBeVisible();
+  await expect(right.getByRole('link', { name: 'Segunda categoría de prueba', exact: true })).toBeVisible();
 });
 
-test('desktop side controls stay outside the album even when expanded', async ({ page }) => {
-  await page.setViewportSize({ width: 1600, height: 900 });
+test('desktop previous and next controls are discoverable lower outer page corners', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/portfolio/categoria-de-prueba/');
 
-  const albumBox = await page.locator('.album-frame').boundingBox();
-  const previous = page
-    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
-    .getByRole('link', { name: 'Página anterior: Índice' });
+  const spreadBox = await page.locator('[data-album-spread]').boundingBox();
+  const pageNavigation = page.getByRole('navigation', { name: 'Recorrido entre páginas del álbum' });
+  const previousBox = await pageNavigation.getByRole('link', { name: 'Página anterior: Índice' }).boundingBox();
+  const nextBox = await pageNavigation
+    .getByRole('link', { name: 'Página siguiente: Segunda categoría de prueba' })
+    .boundingBox();
+
+  expect(spreadBox).not.toBeNull();
+  expect(previousBox).not.toBeNull();
+  expect(nextBox).not.toBeNull();
+  expect(previousBox?.width ?? 0).toBeGreaterThanOrEqual(44);
+  expect(previousBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+  expect(nextBox?.width ?? 0).toBeGreaterThanOrEqual(44);
+  expect(nextBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+  expect(previousBox?.x ?? Infinity).toBeLessThan((spreadBox?.x ?? 0) + 12);
+  expect((nextBox?.x ?? 0) + (nextBox?.width ?? 0)).toBeGreaterThan(
+    (spreadBox?.x ?? 0) + (spreadBox?.width ?? 0) - 12,
+  );
+  expect((previousBox?.y ?? 0) + (previousBox?.height ?? 0)).toBeGreaterThan(
+    (spreadBox?.y ?? 0) + (spreadBox?.height ?? 0) - 12,
+  );
+  expect((nextBox?.y ?? 0) + (nextBox?.height ?? 0)).toBeGreaterThan(
+    (spreadBox?.y ?? 0) + (spreadBox?.height ?? 0) - 12,
+  );
+});
+
+test('physical page drag cancels below forty percent and confirms above it in both directions', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/sobre-mi/');
+  await expect(page.locator('html')).toHaveAttribute('data-page-navigation-ready', 'true');
+
+  const rightPage = page.locator('.album-page-right');
+  let pageWidth = (await rightPage.boundingBox())?.width ?? 1;
   const next = page
     .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
-    .getByRole('link', { name: 'Página siguiente: Segunda categoría de prueba' });
+    .getByRole('link', { name: 'Página siguiente: Índice' });
+  let nextBox = await next.boundingBox();
+  expect(nextBox).not.toBeNull();
 
-  expect(albumBox).not.toBeNull();
+  let startX = (nextBox?.x ?? 0) + (nextBox?.width ?? 0) - 10;
+  let startY = (nextBox?.y ?? 0) + (nextBox?.height ?? 0) - 10;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX - pageWidth * 0.25, startY - 4, { steps: 5 });
+  await page.mouse.up();
+  await expect(page).toHaveURL(/\/sobre-mi\/$/);
 
-  await previous.hover();
-  const previousExpanded = await previous.boundingBox();
-  expect(previousExpanded).not.toBeNull();
-  expect((previousExpanded?.x ?? 0) + (previousExpanded?.width ?? 0)).toBeLessThanOrEqual(albumBox?.x ?? 0);
+  await page.waitForTimeout(220);
+  nextBox = await next.boundingBox();
+  startX = (nextBox?.x ?? 0) + (nextBox?.width ?? 0) - 10;
+  startY = (nextBox?.y ?? 0) + (nextBox?.height ?? 0) - 10;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX - pageWidth * 0.5, startY - 4, { steps: 7 });
+  await page.mouse.up();
+  await expect(page).toHaveURL(/\/portfolio\/$/);
 
-  await next.hover();
-  const nextExpanded = await next.boundingBox();
-  expect(nextExpanded).not.toBeNull();
-  expect(nextExpanded?.x ?? 0).toBeGreaterThanOrEqual((albumBox?.x ?? 0) + (albumBox?.width ?? 0));
+  const leftPage = page.locator('.album-page-left');
+  pageWidth = (await leftPage.boundingBox())?.width ?? 1;
+  const previous = page
+    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
+    .getByRole('link', { name: 'Página anterior: Quién soy' });
+  const previousBox = await previous.boundingBox();
+  expect(previousBox).not.toBeNull();
+
+  startX = (previousBox?.x ?? 0) + 10;
+  startY = (previousBox?.y ?? 0) + (previousBox?.height ?? 0) - 10;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + pageWidth * 0.5, startY - 4, { steps: 7 });
+  await page.mouse.up();
+  await expect(page).toHaveURL(/\/sobre-mi\/$/);
 });
 
 test('mobile page controls are visible after the section instead of relying on narrow side targets', async ({ page }) => {
@@ -223,6 +272,7 @@ test('mobile page controls are visible after the section instead of relying on n
   const previousBox = await previous.boundingBox();
   const nextBox = await next.boundingBox();
 
+  await expect(page.locator('.album-page').first()).toHaveCSS('display', 'contents');
   await expect(previous).toBeVisible();
   await expect(next).toBeVisible();
   expect(sheetBox).not.toBeNull();
@@ -244,4 +294,37 @@ test('the album endpoints only render navigation that exists', async ({ page }) 
   navigation = page.getByRole('navigation', { name: 'Recorrido entre páginas del álbum' });
   await expect(navigation.getByRole('link', { name: /Página siguiente:/ })).toHaveCount(0);
   await expect(navigation.getByRole('link', { name: /Página anterior:/ })).toBeVisible();
+});
+
+test('reduced motion keeps corner links functional without enabling physical page drag', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/sobre-mi/');
+  await expect(page.locator('html')).toHaveAttribute('data-page-navigation-ready', 'true');
+
+  const next = page
+    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
+    .getByRole('link', { name: 'Página siguiente: Índice' });
+  const rightPage = page.locator('.album-page-right');
+
+  await next.dispatchEvent('pointerdown', {
+    pointerId: 7,
+    isPrimary: true,
+    button: 0,
+    clientX: 1200,
+    clientY: 700,
+  });
+  await next.dispatchEvent('pointermove', {
+    pointerId: 7,
+    isPrimary: true,
+    button: 0,
+    clientX: 800,
+    clientY: 700,
+  });
+
+  await expect(rightPage).not.toHaveClass(/is-page-turning/);
+  await expect(rightPage).toHaveCSS('transform', 'none');
+
+  await next.click();
+  await expect(page).toHaveURL(/\/portfolio\/$/);
 });
