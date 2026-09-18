@@ -171,6 +171,21 @@ test('touch navigation keeps semantic focus without drawing a frame around the a
   await expect(main).toHaveCSS('outline-style', 'none');
 });
 
+test('standard desktop keeps resting side tabs outside the album', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/contacto/');
+
+  const albumBox = await page.locator('.album-frame').boundingBox();
+  const previous = page
+    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
+    .getByRole('link', { name: /Página anterior:/ });
+  const previousBox = await previous.boundingBox();
+
+  expect(albumBox).not.toBeNull();
+  expect(previousBox).not.toBeNull();
+  expect((previousBox?.x ?? 0) + (previousBox?.width ?? 0)).toBeLessThanOrEqual(albumBox?.x ?? 0);
+});
+
 test('desktop side controls stay outside the album even when expanded', async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto('/portfolio/categoria-de-prueba/');
