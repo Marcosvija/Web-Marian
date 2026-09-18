@@ -93,16 +93,16 @@
   }
 
   .page-navigation-previous {
-    inset-inline-start: max(0.25rem, calc((100vw - 88rem) / 2 + 0.25rem));
-    border-inline-start-width: 0.35rem;
-    border-radius: 0 0.25rem 0.25rem 0;
+    inset-inline-end: calc(50vw + 44rem);
+    border-inline-end-width: 0.35rem;
+    border-radius: 0.25rem 0 0 0.25rem;
   }
 
   .page-navigation-next {
-    inset-inline-end: max(0.25rem, calc((100vw - 88rem) / 2 + 0.25rem));
+    inset-inline-start: calc(50vw + 44rem);
     flex-direction: row-reverse;
-    border-inline-end-width: 0.35rem;
-    border-radius: 0.25rem 0 0 0.25rem;
+    border-inline-start-width: 0.35rem;
+    border-radius: 0 0.25rem 0.25rem 0;
   }
 
   .page-navigation-control .page-navigation-copy {
