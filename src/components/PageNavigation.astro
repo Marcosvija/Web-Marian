@@ -84,14 +84,16 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
     const spread = getSpread();
     if (!spread) return null;
     return spread.querySelector<HTMLElement>(
-      direction === 'next' ? '.album-page-right' : '.album-page-left',
+      direction === 'next'
+        ? ':scope > .album-page-right'
+        : ':scope > .album-page-left',
     );
   };
 
   const physicalTurnAvailable = () => {
     if (reducedMotion.matches) return false;
     const spread = getSpread();
-    const page = spread?.querySelector<HTMLElement>('.album-page');
+    const page = spread?.querySelector<HTMLElement>(':scope > .album-page');
     if (!spread || !page) return false;
 
     const spreadWidth = spread.getBoundingClientRect().width;
@@ -294,7 +296,24 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
     }, duration);
   };
 
+  const enableFrameHandoff = () => {
+    if (reducedMotion.matches) return;
+    const style = document.createElement('style');
+    style.dataset.albumFrameHandoff = '';
+    style.textContent = `
+      @view-transition { navigation: auto; }
+      ::view-transition-group(root),
+      ::view-transition-old(root),
+      ::view-transition-new(root) {
+        animation: none !important;
+        mix-blend-mode: normal;
+      }
+    `;
+    document.head.append(style);
+  };
+
   focusDestination();
+  enableFrameHandoff();
 
   document.querySelectorAll<HTMLAnchorElement>('[data-page-navigation] a').forEach((link) => {
     const direction: TurnDirection =

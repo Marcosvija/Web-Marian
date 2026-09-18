@@ -326,8 +326,8 @@ test('single-page reflow adds one small gap between former left and right page g
   ]) {
     await page.goto(route);
 
-    const left = page.locator('.album-page-left');
-    const right = page.locator('.album-page-right');
+    const left = page.locator('[data-album-spread] > .album-page-left');
+    const right = page.locator('[data-album-spread] > .album-page-right');
     await expect(left, route).toHaveCSS('display', 'block');
     await expect(right, route).toHaveCSS('display', 'block');
 
@@ -350,8 +350,8 @@ test('double spread removes the mobile group gap', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/portfolio/categoria-de-prueba/');
 
-  const left = page.locator('.album-page-left');
-  const right = page.locator('.album-page-right');
+  const left = page.locator('[data-album-spread] > .album-page-left');
+  const right = page.locator('[data-album-spread] > .album-page-right');
   const leftBox = await left.boundingBox();
   const rightBox = await right.boundingBox();
 
@@ -432,7 +432,7 @@ test('continuous turn prepares real adjacent content as an inert visual scene', 
   await expect(preview).toHaveAttribute('inert', '');
   await expect(preview.locator('[data-turn-preview-page="left"]')).toContainText('Atrapando instantes');
 
-  const rightPage = page.locator('.album-page-right');
+  const rightPage = page.locator('[data-album-spread] > .album-page-right');
   const pageWidth = (await rightPage.boundingBox())?.width ?? 1;
   const box = await next.boundingBox();
   expect(box).not.toBeNull();
@@ -470,7 +470,7 @@ test('continuous turn mirrors real destination faces when navigating backward', 
   await expect(preview).toBeAttached();
   await expect(preview.locator('[data-turn-preview-page="left"]')).toContainText('Quién soy');
 
-  const leftPage = page.locator('.album-page-left');
+  const leftPage = page.locator('[data-album-spread] > .album-page-left');
   const pageWidth = (await leftPage.boundingBox())?.width ?? 1;
   const box = await previous.boundingBox();
   expect(box).not.toBeNull();
@@ -504,7 +504,7 @@ test('confirmed continuous turn keeps the prepared destination scene until route
   await expect(preview).toBeAttached();
   await expect(preview).toContainText('Segunda categoría de prueba');
 
-  const rightPage = page.locator('.album-page-right');
+  const rightPage = page.locator('[data-album-spread] > .album-page-right');
   const pageWidth = (await rightPage.boundingBox())?.width ?? 1;
   const box = await next.boundingBox();
   expect(box).not.toBeNull();
@@ -527,7 +527,7 @@ test('physical page drag cancels below forty percent and confirms above it in bo
   await page.goto('/sobre-mi/');
   await expect(page.locator('html')).toHaveAttribute('data-page-navigation-ready', 'true');
 
-  const rightPage = page.locator('.album-page-right');
+  const rightPage = page.locator('[data-album-spread] > .album-page-right');
   let pageWidth = (await rightPage.boundingBox())?.width ?? 1;
   const next = page
     .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
@@ -553,7 +553,7 @@ test('physical page drag cancels below forty percent and confirms above it in bo
   await page.mouse.up();
   await expect(page).toHaveURL(/\/portfolio\/$/);
 
-  const leftPage = page.locator('.album-page-left');
+  const leftPage = page.locator('[data-album-spread] > .album-page-left');
   pageWidth = (await leftPage.boundingBox())?.width ?? 1;
   const previous = page
     .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
@@ -615,7 +615,7 @@ test('reduced motion keeps corner links functional without enabling physical pag
   const next = page
     .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
     .getByRole('link', { name: 'Página siguiente: Índice' });
-  const rightPage = page.locator('.album-page-right');
+  const rightPage = page.locator('[data-album-spread] > .album-page-right');
 
   await next.dispatchEvent('pointerdown', {
     pointerId: 7,
