@@ -15,7 +15,7 @@ test('the album routes, sequential page controls and recoverable index work with
   await pageNavigation.getByRole('link', { name: 'Página siguiente: Índice' }).click();
   await expect(page).toHaveURL(/\/portfolio\/$/);
 
-  await page.getByText('Índice', { exact: true }).click();
+  await page.locator('.bookmark-index summary').click();
   const albumIndex = page.getByRole('navigation', { name: 'Índice del álbum' });
   await expect(albumIndex.getByRole('link', { name: 'Portfolio', exact: true })).toHaveCount(0);
   await expect(albumIndex.getByRole('link', { name: 'Quién soy' })).toBeVisible();
@@ -34,10 +34,12 @@ test('the album routes, sequential page controls and recoverable index work with
 
 test('keyboard page navigation follows the editorial sequence and moves focus to the new page', async ({ page }) => {
   await page.goto('/sobre-mi/');
+  await expect(page.locator('html')).toHaveAttribute('data-page-navigation-ready', 'true');
 
   await page.keyboard.press('ArrowRight');
   await expect(page).toHaveURL(/\/portfolio\/$/);
   await expect(page.locator('#contenido')).toBeFocused();
+  await expect(page.locator('html')).toHaveAttribute('data-page-navigation-ready', 'true');
 
   await page.keyboard.press('ArrowLeft');
   await expect(page).toHaveURL(/\/sobre-mi\/$/);
