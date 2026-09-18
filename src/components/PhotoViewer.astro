@@ -79,6 +79,7 @@
 
     triggers.forEach((trigger, index) => {
       trigger.addEventListener('click', (event) => {
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
         openViewer(index, trigger);
       });
@@ -129,7 +130,7 @@
       const requestedIndex = triggers.findIndex(
         (trigger) => trigger.dataset.photoId === requestedPhoto,
       );
-      if (requestedIndex >= 0) openViewer(requestedIndex);
+      if (requestedIndex >= 0) openViewer(requestedIndex, triggers[requestedIndex]);
     }
   }
 </script>

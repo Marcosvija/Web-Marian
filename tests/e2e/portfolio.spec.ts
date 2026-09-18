@@ -140,7 +140,7 @@ test('the bookmark is physically inserted laterally and includes both covers in 
     await expect(index).toHaveAttribute('data-bookmark-side', side);
 
     const objectBox = await object.boundingBox();
-    const restingBox = await tab.boundingBox();
+    const restingBox = await tab.locator('.bookmark-ribbon').boundingBox();
     expect(objectBox, route).not.toBeNull();
     expect(restingBox, route).not.toBeNull();
     const label = tab.locator('.bookmark-ribbon-label');
@@ -181,7 +181,7 @@ test('the bookmark is physically inserted laterally and includes both covers in 
 
     await tab.hover();
     await page.waitForTimeout(180);
-    const hoverBox = await tab.boundingBox();
+    const hoverBox = await tab.locator('.bookmark-ribbon').boundingBox();
     if (side === 'right') {
       expect((hoverBox?.x ?? 0), route).toBeGreaterThan((restingBox?.x ?? 0) + 3);
     } else {
@@ -190,7 +190,7 @@ test('the bookmark is physically inserted laterally and includes both covers in 
 
     await tab.click();
     await page.waitForTimeout(180);
-    const openBox = await tab.boundingBox();
+    const openBox = await tab.locator('.bookmark-ribbon').boundingBox();
     if (side === 'right') {
       expect((openBox?.x ?? 0), route).toBeGreaterThan((restingBox?.x ?? 0) + 10);
     } else {
@@ -734,7 +734,7 @@ test('desktop bookmark is a viewport-safe lateral ribbon that mirrors on the bac
     await expect(label).toHaveCSS('text-orientation', 'upright');
 
     const objectBox = await object.boundingBox();
-    const summaryBox = await summary.boundingBox();
+    const summaryBox = await summary.locator('.bookmark-ribbon').boundingBox();
     expect(objectBox, current.route).not.toBeNull();
     expect(summaryBox, current.route).not.toBeNull();
     if (!objectBox || !summaryBox) continue;
@@ -746,13 +746,14 @@ test('desktop bookmark is a viewport-safe lateral ribbon that mirrors on the bac
       expect(summaryRight, current.route).toBeGreaterThan(objectRight);
       const inserted = objectRight - summaryBox.x;
       expect(inserted, current.route).toBeGreaterThan(8);
-      expect(inserted, current.route).toBeLessThan(22);
+      // The ribbon retracts further when the full spread leaves only 24px of margin.
+      expect(inserted, current.route).toBeLessThanOrEqual(24);
     } else {
       expect(summaryBox.x, current.route).toBeLessThan(objectBox.x);
       expect(summaryRight, current.route).toBeGreaterThan(objectBox.x);
       const inserted = summaryRight - objectBox.x;
       expect(inserted, current.route).toBeGreaterThan(8);
-      expect(inserted, current.route).toBeLessThan(22);
+      expect(inserted, current.route).toBeLessThanOrEqual(24);
     }
 
     const expectInsideViewport = async (locator: import('@playwright/test').Locator) => {

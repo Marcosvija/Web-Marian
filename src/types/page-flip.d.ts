@@ -18,6 +18,12 @@ declare module 'page-flip' {
     turnToPage(pageNum: number): void;
     getCurrentPageIndex(): number;
     getState(): string;
+    getBoundsRect(): { left: number; top: number; width: number; height: number; pageWidth: number };
+    getFlipController(): {
+      getCalculation(): {
+        getBottomClipArea(): ({ x: number; y: number } | null)[];
+      } | null;
+    };
     getUI(): { getDistElement(): HTMLElement };
     on(eventName: string, callback: (event: PageFlipEvent<any>) => void): PageFlip;
   }

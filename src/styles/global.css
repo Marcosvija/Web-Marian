@@ -20,7 +20,6 @@
 }
 
 html {
-  min-width: 20rem;
   scroll-behavior: smooth;
 }
 
@@ -117,10 +116,18 @@ a {
 .album-frame {
   container: album / inline-size;
   display: grid;
-  width: min(calc(100vw - 3rem), calc(177.7778dvh - 9.7778rem));
+  width: 100%;
   min-height: calc(100dvh - 5.5rem);
   margin: 3rem auto 0;
   place-items: center;
+}
+
+/* The height-constrained book scale applies only where a spread can fit.
+   Short landscape/reflow viewports keep the full useful reading width. */
+@media (min-width: 59rem) and (min-height: 38rem) {
+  .album-frame {
+    width: min(100%, calc(177.7778dvh - 9.7778rem));
+  }
 }
 
 .sheet {
@@ -465,9 +472,9 @@ h1 {
 @media (min-height: 38rem) {
   @container album (min-width: 56rem) {
     .bookmark-index {
-      --bookmark-rest-x: 1.35rem;
-      --bookmark-hover-x: 1.65rem;
-      --bookmark-open-x: 2.1rem;
+      --bookmark-rest-x: 1rem;
+      --bookmark-hover-x: 1rem;
+      --bookmark-open-x: 1rem;
       --bookmark-panel-max-height: 32rem;
       position: absolute;
       inset-block-start: 40%;
@@ -480,6 +487,9 @@ h1 {
     }
 
     .album-object.is-back-cover-object .bookmark-index {
+      --bookmark-rest-x: -1rem;
+      --bookmark-hover-x: -1rem;
+      --bookmark-open-x: -1rem;
       inset-inline: 0 auto;
     }
 
@@ -487,9 +497,9 @@ h1 {
       content: "";
       position: absolute;
       inset-block: -0.2rem;
-      inset-inline-end: -0.28rem;
+      inset-inline-end: -0.08rem;
       z-index: 3;
-      width: 0.52rem;
+      width: 0.18rem;
       border-radius: 50%;
       background: rgb(48 37 31 / 0.3);
       box-shadow:
@@ -499,7 +509,7 @@ h1 {
     }
 
     .album-object.is-back-cover-object .bookmark-index::before {
-      inset-inline: -0.28rem auto;
+      inset-inline: -0.08rem auto;
       box-shadow:
         -0.08rem 0 0.18rem rgb(42 34 28 / 0.28),
         inset -0.08rem 0 0.1rem rgb(255 255 255 / 0.24);
@@ -511,7 +521,7 @@ h1 {
       inset-block: 0;
       inset-inline-end: -0.06rem;
       z-index: 2;
-      width: 0.92rem;
+      width: 1.8rem;
       background:
         linear-gradient(90deg, transparent, rgb(255 255 255 / 0.2) 72%),
         var(--paper-raised);
@@ -527,19 +537,45 @@ h1 {
       box-shadow: inset 0.22rem 0 0.32rem -0.28rem rgb(42 34 28 / 0.42);
     }
 
+    /* Continue the real cover edge across the occluded part of the ribbon. */
+    .album-object.is-closed-cover .bookmark-index::after {
+      inset-inline-end: 0;
+      border-inline-end: 0.45rem solid rgb(71 60 51 / 0.34);
+    }
+
+    .album-object.is-back-cover-object .bookmark-index::after {
+      inset-inline: 0 auto;
+      border-inline-start: 0.45rem solid rgb(71 60 51 / 0.34);
+      border-inline-end: 0;
+    }
+
     .bookmark-index summary {
       position: absolute;
       inset-block-start: 0;
       inset-inline-end: 0;
       z-index: 1;
       display: grid;
-      width: 2.5rem;
-      min-width: 2.5rem;
+      width: 2.75rem;
+      min-width: 2.75rem;
       height: 7.5rem;
       min-height: 7.5rem;
       padding: 0;
       place-items: center;
       border: 0;
+      background: transparent;
+      box-shadow: none;
+      pointer-events: auto;
+      translate: var(--bookmark-rest-x) 0;
+    }
+
+    .bookmark-index[data-bookmark-viewport-ready] summary {
+      transition: translate 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .bookmark-ribbon {
+      position: absolute;
+      inset: 0 0 0 auto;
+      width: 2.5rem;
       border-radius: 0.12rem 0.18rem 0.18rem 0.12rem;
       background:
         linear-gradient(90deg, rgb(255 255 255 / 0.18), transparent 30%, rgb(50 35 30 / 0.14) 84%),
@@ -552,14 +588,10 @@ h1 {
         inset 0.2rem 0 0.3rem rgb(255 255 255 / 0.11),
         inset -0.22rem 0 0.32rem rgb(42 34 28 / 0.16);
       clip-path: polygon(0 0, 100% 0, 100% 88%, 50% 100%, 0 88%);
-      pointer-events: auto;
-      translate: var(--bookmark-rest-x) 0;
-      transition:
-        translate 180ms cubic-bezier(0.22, 1, 0.36, 1),
-        filter 180ms ease;
+      pointer-events: none;
     }
 
-    .bookmark-index summary::before {
+    .bookmark-ribbon::before {
       content: "";
       position: absolute;
       inset-block: 0.5rem 1.05rem;
@@ -571,10 +603,11 @@ h1 {
 
     .bookmark-ribbon-label {
       position: absolute;
-      inset-block-start: 0.78rem;
-      inset-inline-end: 0.28rem;
+      /* Physical axes: logical insets rotate with vertical writing mode. */
+      top: 0.78rem;
+      right: 0.12rem;
       display: grid;
-      width: 0.95rem;
+      width: 0.8rem;
       height: 5.45rem;
       place-items: center;
       color: rgb(255 252 248 / 0.99);
@@ -589,6 +622,10 @@ h1 {
 
     .album-object.is-back-cover-object .bookmark-index summary {
       inset-inline: 0 auto;
+    }
+
+    .album-object.is-back-cover-object .bookmark-ribbon {
+      inset: 0 auto 0 0;
       border-radius: 0.18rem 0.12rem 0.12rem 0.18rem;
       box-shadow:
         -0.22rem 0.2rem 0.48rem rgb(42 34 28 / 0.22),
@@ -596,13 +633,14 @@ h1 {
         inset -0.22rem 0 0.32rem rgb(42 34 28 / 0.16);
     }
 
-    .album-object.is-back-cover-object .bookmark-index summary::before {
+    .album-object.is-back-cover-object .bookmark-ribbon::before {
       inset-inline: 1.12rem auto;
       filter: drop-shadow(-1px 0 0 rgb(55 38 31 / 0.13));
     }
 
     .album-object.is-back-cover-object .bookmark-ribbon-label {
-      inset-inline: 0.28rem auto;
+      right: auto;
+      left: 0.12rem;
     }
 
     .bookmark-index summary:hover,
@@ -616,8 +654,8 @@ h1 {
     }
 
     .bookmark-index summary:focus-visible {
-      outline: 3px solid currentColor;
-      outline-offset: 0.18rem;
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
     }
 
     .bookmark-panel {
@@ -651,7 +689,7 @@ h1 {
       content: "";
       position: absolute;
       inset-block-start: 1.45rem;
-      inset-inline-end: -0.72rem;
+      inset-inline-end: 0;
       width: 0.82rem;
       height: 2.3rem;
       background:
@@ -662,7 +700,7 @@ h1 {
     }
 
     .album-object.is-back-cover-object .bookmark-panel::before {
-      inset-inline: -0.72rem auto;
+      inset-inline: 0 auto;
       background:
         linear-gradient(90deg, rgb(223 214 201 / 0.95), var(--paper-raised));
       clip-path: polygon(100% 0, 0 18%, 0 82%, 100% 100%);

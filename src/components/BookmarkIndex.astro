@@ -13,7 +13,7 @@ const activePath = normalizePath(currentPath);
 
 <details class="bookmark-index" data-bookmark-index>
   <summary>
-    <span class="bookmark-ribbon-label">Índice</span>
+    <span class="bookmark-ribbon"><span class="bookmark-ribbon-label">Índice</span></span>
   </summary>
   <nav class="bookmark-panel" aria-label="Índice del álbum">
     <p class="bookmark-heading">Atrapando instantes</p>
@@ -56,7 +56,7 @@ const activePath = normalizePath(currentPath);
     const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
     const leftSide = albumObject.classList.contains('is-back-cover-object');
     const sideSpace = leftSide ? objectBox.left : viewportWidth - objectBox.right;
-    const viewportGap = 3;
+    const viewportGap = 8;
     const desiredExposed = 24;
     const availableOutside = Math.max(0, sideSpace - viewportGap);
     const exposed = Math.min(desiredExposed, availableOutside);
@@ -77,10 +77,26 @@ const activePath = normalizePath(currentPath);
     bookmark.style.setProperty('--bookmark-open-x', `${edgeCorrection + direction * (exposed + openPull)}px`);
     bookmark.style.setProperty('--bookmark-panel-max-height', `${panelMaxHeight}px`);
     bookmark.dataset.bookmarkSide = leftSide ? 'left' : 'right';
+    // Commit the initial side and position before enabling extraction transitions.
+    // Otherwise the back ribbon animates across the book edge on first load.
+    if (!bookmark.dataset.bookmarkViewportReady) {
+      bookmark.querySelector('summary')?.getBoundingClientRect();
+    }
     bookmark.dataset.bookmarkViewportReady = 'true';
   };
 
   bookmark?.addEventListener('toggle', () => requestAnimationFrame(updateBookmarkViewportGeometry));
+  bookmark?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !bookmark.open) return;
+    event.preventDefault();
+    bookmark.open = false;
+    bookmark.querySelector('summary')?.focus();
+  });
+  document.addEventListener('pointerdown', (event) => {
+    if (bookmark?.open && event.target instanceof Node && !bookmark.contains(event.target)) {
+      bookmark.open = false;
+    }
+  });
   window.addEventListener('resize', updateBookmarkViewportGeometry);
   window.visualViewport?.addEventListener('resize', updateBookmarkViewportGeometry);
   requestAnimationFrame(updateBookmarkViewportGeometry);

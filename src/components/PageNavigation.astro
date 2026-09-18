@@ -99,18 +99,31 @@ const nextKicker =
     lastPoint: { x: number; y: number } | null;
     dragStartClientX: number | null;
     visualProgress: number;
+    closingSurface: HTMLElement | null;
   }
 
   const focusKey = 'album-page-navigation-focus';
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const preparedRenderers = new WeakMap<HTMLAnchorElement, Promise<FlexibleRenderer | null>>();
-  const preparedCoverScenes = new WeakMap<HTMLAnchorElement, Promise<CoverScene | null>>();
+  const preparedRenderers = new Map<HTMLAnchorElement, Promise<FlexibleRenderer | null>>();
+  const preparedCoverScenes = new Map<HTMLAnchorElement, Promise<CoverScene | null>>();
+  const liveRenderers = new Set<FlexibleRenderer | CoverScene>();
+  let geometryRevision = 0;
+
+  const rememberFocus = (origin: 'keyboard' | 'pointer') => {
+    try { sessionStorage.setItem(focusKey, origin); } catch { /* Storage is optional. */ }
+  };
+
+  const isPlainActivation = (event: MouseEvent) =>
+    event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 
   const focusDestination = () => {
-    const focusOrigin = sessionStorage.getItem(focusKey);
+    let focusOrigin: string | null = null;
+    try {
+      focusOrigin = sessionStorage.getItem(focusKey);
+      sessionStorage.removeItem(focusKey);
+    } catch { return; }
     if (!focusOrigin) return;
 
-    sessionStorage.removeItem(focusKey);
     const main = document.querySelector<HTMLElement>('#contenido');
     if (!main) return;
 
@@ -170,14 +183,23 @@ const nextKicker =
 
   const waitForVisualAssets = async (root: HTMLElement) => {
     const images = Array.from(root.querySelectorAll<HTMLImageElement>('img'));
-    await Promise.allSettled(
-      images.map(async (image) => {
-        if (image.complete && image.naturalWidth > 0) return;
-        await image.decode();
-      }),
-    );
-
-    if ('fonts' in document) await document.fonts.ready;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.all([
+          ...images.map(async (image) => {
+            if (image.complete && image.naturalWidth > 0) return;
+            await image.decode();
+          }),
+          document.fonts.ready,
+        ]),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('Preview assets timed out')), 2500);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timeout);
+    }
 
     await new Promise<void>((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
@@ -248,6 +270,7 @@ const nextKicker =
     if (cached) return cached;
 
     const task = (async () => {
+      const revision = geometryRevision;
       if (!physicalTurnAvailable()) return null;
 
       const spread = getSpread();
@@ -255,10 +278,13 @@ const nextKicker =
       const currentRight = spread?.querySelector<HTMLElement>(':scope > .album-page-right');
       if (!spread || !currentLeft || !currentRight) return null;
 
+      let pendingHost: HTMLElement | undefined;
+      let pendingFlip: PageFlip | undefined;
       try {
         const response = await fetch(link.href, {
           credentials: 'same-origin',
           headers: { 'X-Album-Turn-Preview': '1' },
+          signal: AbortSignal.timeout(2500),
         });
         if (!response.ok) return null;
 
@@ -275,6 +301,7 @@ const nextKicker =
         if (pageBox.width <= 0 || pageBox.height <= 0) return null;
 
         const host = document.createElement('div');
+        pendingHost = host;
         host.className = 'album-curl-renderer';
         host.dataset.curlRenderer = direction;
         host.setAttribute('aria-hidden', 'true');
@@ -314,9 +341,14 @@ const nextKicker =
           showPageCorners: false,
           disableFlipByClick: true,
         });
+        pendingFlip = flip;
 
         flip.loadFromHTML(pages);
         await waitForVisualAssets(host);
+        if (revision !== geometryRevision || !physicalTurnAvailable()) {
+          flip.destroy();
+          return null;
+        }
 
         const renderer: FlexibleRenderer = {
           flip,
@@ -328,14 +360,19 @@ const nextKicker =
           lastPoint: null,
         };
         host.dataset.curlReady = 'true';
+        liveRenderers.add(renderer);
         return renderer;
       } catch {
-        preparedRenderers.delete(link);
+        try { pendingFlip?.destroy(); } catch { /* The fallback link remains usable. */ }
+        pendingHost?.remove();
         return null;
       }
     })();
 
     preparedRenderers.set(link, task);
+    void task.then((renderer) => {
+      if (!renderer && preparedRenderers.get(link) === task) preparedRenderers.delete(link);
+    });
     return task;
   };
 
@@ -360,7 +397,7 @@ const nextKicker =
     currentClientX: number,
     currentClientY: number,
   ) => {
-    if (renderer.started || renderer.settling) return;
+    if (renderer.started || renderer.settling || !renderer.host.isConnected) return;
 
     const spread = getSpread();
     if (!spread) return;
@@ -383,7 +420,7 @@ const nextKicker =
     clientX: number,
     clientY: number,
   ) => {
-    if (!renderer.started || renderer.settling) return;
+    if (!renderer.started || renderer.settling || !renderer.host.isConnected) return;
 
     const point = rendererPoint(renderer, clientX, clientY);
     renderer.flip.userMove(point, false);
@@ -402,6 +439,7 @@ const nextKicker =
 
     delete document.documentElement.dataset.albumCurlActive;
     preparedRenderers.delete(renderer.link);
+    liveRenderers.delete(renderer);
 
     try {
       renderer.flip.destroy();
@@ -420,6 +458,7 @@ const nextKicker =
 
     await new Promise<void>((resolve) => {
       const frame = (now: number) => {
+        if (!renderer.host.isConnected) { resolve(); return; }
         const elapsed = Math.min(1, (now - startedAt) / Math.max(duration, 1));
         const eased = 1 - Math.pow(1 - elapsed, 3);
         const point = {
@@ -443,7 +482,7 @@ const nextKicker =
     progress: number,
     commit: boolean,
   ) => {
-    if (!renderer.started || renderer.settling) return;
+    if (!renderer.host.isConnected || !renderer.started || renderer.settling) return;
     renderer.settling = true;
 
     const dist = renderer.flip.getUI().getDistElement();
@@ -463,6 +502,7 @@ const nextKicker =
       : Math.round(160 + clamped * 120);
 
     await animateRendererTo(renderer, target, duration);
+    if (!renderer.host.isConnected) return;
 
     if (!commit) {
       destroyRenderer(renderer);
@@ -473,7 +513,7 @@ const nextKicker =
     spread?.setAttribute('data-turn-committed', 'true');
     renderer.host.dataset.curlSettled = 'true';
     renderer.flip.turnToPage(renderer.direction === 'next' ? 2 : 0);
-    sessionStorage.setItem(focusKey, 'pointer');
+    rememberFocus('pointer');
     document.documentElement.dataset.albumTurnNavigation = 'committed';
 
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -499,6 +539,7 @@ const nextKicker =
     if (cached) return cached;
 
     const task = (async () => {
+      const revision = geometryRevision;
       const mode = getCoverMode(link);
       const stage = getStage();
       const object = getObject();
@@ -507,10 +548,13 @@ const nextKicker =
       const currentSpread = object.querySelector<HTMLElement>('[data-album-spread]');
       const currentCover = object.querySelector<HTMLElement>('[data-album-cover]');
 
+      let pendingHost: HTMLElement | undefined;
+      let pendingFlip: PageFlip | undefined;
       try {
         const response = await fetch(link.href, {
           credentials: 'same-origin',
           headers: { 'X-Album-Cover-Preview': '1' },
+          signal: AbortSignal.timeout(2500),
         });
         if (!response.ok) return null;
 
@@ -535,6 +579,7 @@ const nextKicker =
         if (pageWidth <= 0 || referenceHeight <= 0) return null;
 
         const host = document.createElement('div');
+        pendingHost = host;
         host.className = 'album-cover-curl-renderer';
         host.dataset.coverTurn = mode;
         host.dataset.coverDirection = coverDirection(mode);
@@ -586,10 +631,15 @@ const nextKicker =
           showPageCorners: false,
           disableFlipByClick: true,
         });
+        pendingFlip = flip;
 
         flip.loadFromHTML(pages);
         flip.turnToPage(startPage);
         await waitForVisualAssets(host);
+        if (revision !== geometryRevision || !physicalModeAvailable()) {
+          flip.destroy();
+          return null;
+        }
 
         const scene: CoverScene = {
           flip,
@@ -605,18 +655,26 @@ const nextKicker =
           lastPoint: null,
           dragStartClientX: null,
           visualProgress: 0,
+          closingSurface: opening ? null : host.querySelector<HTMLElement>(
+            `[data-cover-page="${mode === 'close-front' ? 'spread-left' : 'spread-right'}"]`,
+          ),
         };
 
         updateCoverSceneSpatialProgress(scene, 0);
         host.dataset.coverReady = 'true';
+        liveRenderers.add(scene);
         return scene;
       } catch {
-        preparedCoverScenes.delete(link);
+        try { pendingFlip?.destroy(); } catch { /* The fallback link remains usable. */ }
+        pendingHost?.remove();
         return null;
       }
     })();
 
     preparedCoverScenes.set(link, task);
+    void task.then((scene) => {
+      if (!scene && preparedCoverScenes.get(link) === task) preparedCoverScenes.delete(link);
+    });
     return task;
   };
 
@@ -632,13 +690,28 @@ const nextKicker =
     const closedness = opening ? 1 - clamped : clamped;
     const clipSize = scene.pageWidth * closedness;
     const front = scene.mode.includes('front');
-
     scene.visualProgress = clamped;
     scene.host.style.setProperty('--cover-scene-shift', `${shift}px`);
     scene.host.style.setProperty('--cover-scene-clip-left', `${front ? clipSize : 0}px`);
     scene.host.style.setProperty('--cover-scene-clip-right', `${front ? 0 : clipSize}px`);
     scene.host.dataset.coverSpatialProgress = clamped.toFixed(3);
     scene.host.dataset.coverClipSide = front ? 'left' : 'right';
+
+    // A closed cover has no paper underneath its free side. page-flip keeps
+    // the old static page there; its transparent placeholder cannot occlude it.
+    // Subtract the renderer's actual revealed polygon from that static surface,
+    // including its border/shadow. The outer scene mask remains a safety bound;
+    // only this polygon follows the physical fold when the pointer also moves Y.
+    const calculation = scene.flip.getFlipController().getCalculation();
+    if (scene.closingSurface && calculation) {
+      const width = scene.flip.getBoundsRect().pageWidth;
+      const points = calculation.getBottomClipArea()
+        .filter((point): point is { x: number; y: number } => point !== null)
+        .map(({ x, y }) => `${scene.mode === 'close-front' ? width - x : x}px ${y}px`);
+      if (points.length >= 3) {
+        scene.closingSurface.style.clipPath = `polygon(evenodd, 0px 0px, 100% 0px, 100% 100%, 0px 100%, 0px 0px, ${points.join(', ')}, ${points[0]}, 0px 0px)`;
+      }
+    }
   };
 
   const coverProgressFromClientX = (scene: CoverScene, clientX: number) => {
@@ -670,7 +743,7 @@ const nextKicker =
     currentClientX: number,
     currentClientY: number,
   ) => {
-    if (scene.started || scene.settling) return;
+    if (scene.started || scene.settling || !scene.host.isConnected) return;
 
     const stage = getStage();
     if (!stage) return;
@@ -695,7 +768,7 @@ const nextKicker =
     clientX: number,
     clientY: number,
   ) => {
-    if (!scene.started || scene.settling) return;
+    if (!scene.started || scene.settling || !scene.host.isConnected) return;
 
     const point = coverRendererPoint(scene, clientX, clientY);
     scene.flip.userMove(point, false);
@@ -707,6 +780,7 @@ const nextKicker =
     getStage()?.classList.remove('is-cover-turning');
     delete document.documentElement.dataset.albumCoverActive;
     preparedCoverScenes.delete(scene.link);
+    liveRenderers.delete(scene);
 
     try {
       scene.flip.destroy();
@@ -727,6 +801,7 @@ const nextKicker =
 
     await new Promise<void>((resolve) => {
       const frame = (now: number) => {
+        if (!scene.host.isConnected) { resolve(); return; }
         const elapsed = Math.min(1, (now - startedAt) / Math.max(duration, 1));
         const eased = elapsed < 0.5
           ? 4 * Math.pow(elapsed, 3)
@@ -766,7 +841,7 @@ const nextKicker =
     commit: boolean,
     origin: 'pointer' | 'keyboard' = 'pointer',
   ) => {
-    if (!scene.started || scene.settling) return;
+    if (!scene.host.isConnected || !scene.started || scene.settling) return;
     scene.settling = true;
 
     const dist = scene.flip.getUI().getDistElement();
@@ -786,6 +861,7 @@ const nextKicker =
       : Math.round(220 + clamped * 180);
 
     await animateCoverTo(scene, target, commit ? 1 : 0, duration);
+    if (!scene.host.isConnected) return;
 
     if (!commit) {
       destroyCoverScene(scene);
@@ -794,7 +870,7 @@ const nextKicker =
 
     scene.flip.turnToPage(scene.endPage);
     scene.host.dataset.coverSettled = 'true';
-    sessionStorage.setItem(focusKey, origin);
+    rememberFocus(origin);
     document.documentElement.dataset.albumTurnNavigation = 'committed';
 
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -805,34 +881,29 @@ const nextKicker =
     link: HTMLAnchorElement,
     origin: 'keyboard' | 'pointer',
   ) => {
-    sessionStorage.setItem(focusKey, origin);
+    rememberFocus(origin);
     window.location.assign(link.href);
   };
 
-  const enableFrameHandoff = () => {
-    if (reducedMotion.matches) return;
-
-    const style = document.createElement('style');
-    style.dataset.albumFrameHandoff = '';
-    style.textContent = `
-      @view-transition { navigation: auto; }
-      ::view-transition-group(root),
-      ::view-transition-old(root),
-      ::view-transition-new(root) {
-        animation: none !important;
-        mix-blend-mode: normal;
-      }
-    `;
-    document.head.append(style);
-  };
-
   focusDestination();
-  enableFrameHandoff();
+
+  const invalidatePreparedGeometry = () => {
+    geometryRevision += 1;
+    for (const renderer of liveRenderers) {
+      if ('mode' in renderer) destroyCoverScene(renderer);
+      else destroyRenderer(renderer);
+    }
+    preparedRenderers.clear();
+    preparedCoverScenes.clear();
+  };
+  window.addEventListener('resize', invalidatePreparedGeometry);
+  reducedMotion.addEventListener('change', invalidatePreparedGeometry);
 
   document.querySelectorAll<HTMLAnchorElement>('[data-page-navigation] a').forEach((link) => {
     const direction: TurnDirection =
       link.dataset.pageDirection === 'previous' ? 'previous' : 'next';
     let pointerId: number | null = null;
+    let pointerRevision = geometryRevision;
     let startX = 0;
     let startY = 0;
     let lastX = 0;
@@ -863,10 +934,12 @@ const nextKicker =
     };
 
     link.draggable = false;
-    link.addEventListener('pointerenter', warmInteraction, { once: true });
-    link.addEventListener('focus', warmInteraction, { once: true });
+    link.addEventListener('pointerenter', warmInteraction);
+    link.addEventListener('focus', warmInteraction);
 
     link.addEventListener('click', (event) => {
+      if (!isPlainActivation(event)) return;
+      if (event.detail === 0) suppressClick = false;
       if (suppressClick) {
         event.preventDefault();
         suppressClick = false;
@@ -875,7 +948,7 @@ const nextKicker =
 
       const coverMode = getCoverMode(link);
       if (!coverMode || !physicalModeAvailable()) {
-        sessionStorage.setItem(focusKey, event.detail === 0 ? 'keyboard' : 'pointer');
+        rememberFocus(event.detail === 0 ? 'keyboard' : 'pointer');
         return;
       }
 
@@ -898,15 +971,16 @@ const nextKicker =
     });
 
     link.addEventListener('pointerdown', (event) => {
-      if (!physicalModeAvailable() || !event.isPrimary || event.button !== 0) return;
+      suppressClick = false;
+      if (!physicalModeAvailable() || !event.isPrimary || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
 
       pointerId = event.pointerId;
+      pointerRevision = geometryRevision;
       startX = event.clientX;
       startY = event.clientY;
       lastX = event.clientX;
       lastY = event.clientY;
       dragging = false;
-      suppressClick = false;
       warmInteraction();
     });
 
@@ -942,6 +1016,11 @@ const nextKicker =
 
     document.addEventListener('pointerup', (event) => {
       if (pointerId !== event.pointerId) return;
+      if (pointerRevision !== geometryRevision) {
+        pointerId = null;
+        dragging = false;
+        return;
+      }
 
       const rawDistance = event.clientX - startX;
       const coverMode = getCoverMode(link);
@@ -1014,8 +1093,9 @@ const nextKicker =
     }, { once: true });
 
     link.addEventListener('click', (event) => {
+      if (!isPlainActivation(event)) return;
       if (!physicalModeAvailable()) {
-        sessionStorage.setItem(focusKey, event.detail === 0 ? 'keyboard' : 'pointer');
+        rememberFocus(event.detail === 0 ? 'keyboard' : 'pointer');
         return;
       }
 
@@ -1042,7 +1122,7 @@ const nextKicker =
       target instanceof HTMLInputElement ||
       target instanceof HTMLTextAreaElement ||
       target instanceof HTMLSelectElement ||
-      (target instanceof HTMLElement && target.isContentEditable)
+      (target instanceof HTMLElement && (target.isContentEditable || target.closest('[data-bookmark-index][open]')))
     ) return;
 
     const direction = event.key === 'ArrowLeft' ? 'previous' : 'next';
