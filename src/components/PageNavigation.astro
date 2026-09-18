@@ -88,4 +88,6 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
     sessionStorage.setItem(focusKey, '1');
     window.location.assign(link.href);
   });
+
+  document.documentElement.dataset.pageNavigationReady = 'true';
 </script>
