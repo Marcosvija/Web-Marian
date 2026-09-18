@@ -178,10 +178,10 @@ test('the bookmark is physically inserted and includes both covers in canonical 
     await expect(panel.locator('[data-bookmark-kind="back-cover"]')).not.toHaveClass(/is-category/);
 
     if (route === '/') {
-      await expect(panel.getByRole('link', { name: 'Portada', exact: true })).toHaveAttribute('aria-current', 'page');
+      await expect(panel.locator('a[href="/"]')).toHaveAttribute('aria-current', 'page');
     }
     if (route === '/contraportada/') {
-      await expect(panel.getByRole('link', { name: 'Contraportada', exact: true })).toHaveAttribute('aria-current', 'page');
+      await expect(panel.locator('a[href="/contraportada/"]')).toHaveAttribute('aria-current', 'page');
     }
   }
 });
