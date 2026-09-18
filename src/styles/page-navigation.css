@@ -9,6 +9,13 @@
   align-self: start;
 }
 
+.album-object {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  margin-inline: auto;
+}
+
 .page-navigation {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -72,6 +79,14 @@
 
 @media (min-height: 38rem) {
   @container album (min-width: 56rem) {
+    .album-stage {
+      align-self: center;
+    }
+
+    .album-object.is-closed-cover {
+      width: 50%;
+    }
+
     .page-navigation {
       position: absolute;
       inset: 0;
@@ -80,7 +95,7 @@
       margin: 0;
       pointer-events: none;
     }
-  
+
     .page-navigation-control {
       position: absolute;
       inset-block: auto 0;
@@ -99,63 +114,60 @@
       touch-action: none;
       isolation: isolate;
     }
-  
+
     .page-navigation-control::before {
       content: "";
       position: absolute;
       inset: 0;
       z-index: -1;
       background:
-        linear-gradient(135deg, rgb(255 255 255 / 0.7), rgb(213 203 189 / 0.88)),
+        linear-gradient(135deg, rgb(255 255 255 / 0.72), rgb(213 203 189 / 0.9)),
         var(--paper-raised);
-      box-shadow: 0 0.35rem 0.9rem rgb(42 34 28 / 0.18);
+      box-shadow: 0 0.3rem 0.8rem rgb(42 34 28 / 0.17);
       transition:
         transform 160ms ease,
         filter 160ms ease;
     }
-  
+
     .page-navigation-previous {
       inset-inline: 0 auto;
       align-items: end;
       justify-content: start;
       text-align: start;
     }
-  
+
     .page-navigation-previous::before {
       clip-path: polygon(0 0, 100% 100%, 0 100%);
       transform-origin: bottom left;
     }
-  
+
     .page-navigation-next {
       inset-inline: auto 0;
       align-items: end;
       justify-content: end;
       text-align: end;
     }
-  
+
     .page-navigation-next::before {
       clip-path: polygon(100% 0, 100% 100%, 0 100%);
       transform-origin: bottom right;
     }
-  
+
     .page-navigation-control:hover,
     .page-navigation-control:focus-visible {
       background: transparent;
     }
-  
+
     .page-navigation-control:hover::before,
     .page-navigation-control:focus-visible::before {
       transform: scale(1.08);
       filter: brightness(1.03);
     }
-  
+
     .page-navigation-arrow {
-      position: relative;
-      z-index: 1;
-      font-size: 1.15rem;
-      font-weight: 800;
+      display: none;
     }
-  
+
     .page-navigation-copy {
       position: absolute;
       inset-block-end: calc(100% + 0.35rem);
@@ -173,15 +185,15 @@
         opacity 140ms ease,
         transform 140ms ease;
     }
-  
+
     .page-navigation-previous .page-navigation-copy {
       inset-inline-start: 0;
     }
-  
+
     .page-navigation-next .page-navigation-copy {
       inset-inline-end: 0;
     }
-  
+
     .page-navigation-control:hover .page-navigation-copy,
     .page-navigation-control:focus-visible .page-navigation-copy {
       opacity: 1;

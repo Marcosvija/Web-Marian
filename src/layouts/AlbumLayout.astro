@@ -12,23 +12,38 @@ interface Props {
 const { title, description } = Astro.props;
 const navigation = await getAlbumNavigation();
 const pageSequence = await getAlbumPageSequence();
-const isCover = Astro.url.pathname === '/';
+const currentPath = Astro.url.pathname;
+const isFrontCover = currentPath === '/';
+const isBackCover = currentPath === '/contraportada/';
+const isClosedCover = isFrontCover || isBackCover;
 ---
 
 <BaseLayout title={title} description={description}>
   <div class="site-shell">
-    <header class="site-header">
-      <a class="site-home" href="/" aria-label="Marian, inicio">
-        <span aria-hidden="true">M</span>
-        <span>Marian</span>
-      </a>
-    </header>
-
     <main id="contenido" class="album-frame" tabindex="-1">
-      <div class:list={['album-stage', { 'is-cover-stage': isCover }]}>
-        <BookmarkIndex items={navigation} currentPath={Astro.url.pathname} />
-        <slot />
-        <PageNavigation pages={pageSequence} currentPath={Astro.url.pathname} />
+      <div class="album-stage">
+        <div
+          class:list={[
+            'album-object',
+            {
+              'is-closed-cover': isClosedCover,
+              'is-front-cover-object': isFrontCover,
+              'is-back-cover-object': isBackCover,
+            },
+          ]}
+          data-album-object
+        >
+          <header class="site-header">
+            <a class="site-home" href="/" aria-label="Marian, inicio">
+              <span aria-hidden="true">M</span>
+              <span>Marian</span>
+            </a>
+          </header>
+
+          <BookmarkIndex items={navigation} currentPath={currentPath} />
+          <slot />
+          <PageNavigation pages={pageSequence} currentPath={currentPath} />
+        </div>
       </div>
     </main>
   </div>

@@ -1,37 +1,49 @@
 ---
 import type { CategoryEntry } from '../lib/categories';
+import { getCategorySpreads } from '../lib/category-layout';
 import PhotoGrid from './PhotoGrid.astro';
 import PhotoViewer from './PhotoViewer.astro';
 
 interface Props {
   category: CategoryEntry;
-  previous?: CategoryEntry | undefined;
-  next?: CategoryEntry | undefined;
+  spreadIndex?: number;
 }
 
-const { category } = Astro.props;
+const { category, spreadIndex = 0 } = Astro.props;
 const { title, description, photos } = category.data;
-const featuredPhotos = photos.slice(0, 1);
-const secondaryPhotos = photos.slice(1);
+const spreads = getCategorySpreads(photos);
+const spread = spreads[spreadIndex] ?? spreads[0];
+if (!spread) throw new Error('Category spread unavailable');
 ---
 
-<article class="category-view sheet album-spread" aria-labelledby="category-title" data-album-spread>
+<article
+  class="category-view sheet album-spread"
+  aria-labelledby="category-title"
+  data-album-spread
+  data-category-spread={spread.index + 1}
+  data-category-spread-count={spreads.length}
+>
   <div class="album-page album-page-left">
     <header class="section-heading category-heading">
       <p class="eyebrow">Categoría fotográfica</p>
       <h1 id="category-title">{title}</h1>
-      {description && <p class="category-description">{description}</p>}
+      {spread.index === 0 && description && <p class="category-description">{description}</p>}
+      {spreads.length > 1 && (
+        <p class="category-spread-count" aria-label={`Pliego ${spread.index + 1} de ${spreads.length}`}>
+          {spread.index + 1} / {spreads.length}
+        </p>
+      )}
     </header>
 
-    {featuredPhotos.length > 0 && <PhotoGrid photos={featuredPhotos} />}
-  </div>
-
-  <div class="album-page album-page-right">
-    {secondaryPhotos.length > 0 ? (
-      <PhotoGrid photos={secondaryPhotos} />
+    {spread.left.length > 0 ? (
+      <PhotoGrid photos={spread.left} />
     ) : photos.length === 0 ? (
       <p class="empty-state" role="status">Esta categoría todavía no contiene fotografías.</p>
     ) : null}
+  </div>
+
+  <div class="album-page album-page-right">
+    {spread.right.length > 0 && <PhotoGrid photos={spread.right} />}
   </div>
 
   {photos.length > 0 && <PhotoViewer />}

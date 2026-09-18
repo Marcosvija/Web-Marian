@@ -1,33 +1,24 @@
 ---
 import CategoryView from '../../components/CategoryView.astro';
-import {
-  getAdjacentCategories,
-  getOrderedCategories,
-  type CategoryEntry,
-} from '../../lib/categories';
+import { getOrderedCategories, type CategoryEntry } from '../../lib/categories';
 import AlbumLayout from '../../layouts/AlbumLayout.astro';
 
 interface Props {
   category: CategoryEntry;
-  previous?: CategoryEntry | undefined;
-  next?: CategoryEntry | undefined;
 }
 
 export async function getStaticPaths() {
   const categories = await getOrderedCategories();
 
-  return categories.map((category, index) => ({
+  return categories.map((category) => ({
     params: { slug: category.data.slug },
-    props: {
-      category,
-      ...getAdjacentCategories(categories, index),
-    },
+    props: { category },
   }));
 }
 
-const { category, previous, next } = Astro.props;
+const { category } = Astro.props;
 ---
 
 <AlbumLayout title={`${category.data.title} — Marian`} description={category.data.description}>
-  <CategoryView category={category} previous={previous} next={next} />
+  <CategoryView category={category} spreadIndex={0} />
 </AlbumLayout>

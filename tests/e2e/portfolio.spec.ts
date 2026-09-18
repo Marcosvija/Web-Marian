@@ -104,7 +104,7 @@ test('the photo viewer changes photo after a horizontal touch swipe', async ({ p
 });
 
 test('critical routes have no automatically detectable accessibility violations', async ({ page }) => {
-  for (const route of ['/', '/sobre-mi/', '/portfolio/', '/portfolio/categoria-de-prueba/', '/contacto/']) {
+  for (const route of ['/', '/sobre-mi/', '/portfolio/', '/portfolio/categoria-de-prueba/', '/contacto/', '/contraportada/']) {
     await page.goto(route, { waitUntil: 'networkidle' });
     await expect(page.locator('main')).toBeVisible();
     const results = await new AxeBuilder({ page }).analyze();
@@ -123,43 +123,32 @@ test('reduced motion removes the page entrance animation', async ({ page }) => {
   expect(animationName).toBe('none');
 });
 
-test('the bookmark remains global navigation and stays attached to the album edge', async ({ page }) => {
+test('the bookmark reads as a ribbon inserted in the top edge of the album object', async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
 
-  for (const route of ['/', '/portfolio/categoria-de-prueba/']) {
+  for (const route of ['/', '/portfolio/categoria-de-prueba/', '/contraportada/']) {
     await page.goto(route);
 
-    const stage = page.locator('.album-stage');
+    const object = page.locator('[data-album-object]');
     const tab = page.locator('.bookmark-index summary');
-    const stageBox = await stage.boundingBox();
+    const objectBox = await object.boundingBox();
     const tabBox = await tab.boundingBox();
 
-    expect(stageBox, route).not.toBeNull();
+    expect(objectBox, route).not.toBeNull();
     expect(tabBox, route).not.toBeNull();
     await expect(tab).toHaveCSS('writing-mode', 'vertical-rl');
 
-    const stageRight = (stageBox?.x ?? 0) + (stageBox?.width ?? 0);
-    expect(Math.abs((tabBox?.x ?? 0) - stageRight), route).toBeLessThan(3);
-    expect(
-      Math.abs(
-        ((tabBox?.y ?? 0) + (tabBox?.height ?? 0) / 2) -
-          ((stageBox?.y ?? 0) + (stageBox?.height ?? 0) / 2),
-      ),
-      route,
-    ).toBeLessThan(3);
+    expect((tabBox?.y ?? Infinity), route).toBeLessThan((objectBox?.y ?? 0) + 4);
+    const tabCenter = (tabBox?.x ?? 0) + (tabBox?.width ?? 0) / 2;
+    expect(tabCenter, route).toBeGreaterThan((objectBox?.x ?? 0) + (objectBox?.width ?? 0) * 0.6);
+    expect(tabCenter, route).toBeLessThan((objectBox?.x ?? 0) + (objectBox?.width ?? 0) * 0.95);
 
     await tab.click();
     const panel = page.getByRole('navigation', { name: 'Índice del álbum' });
     await expect(panel.getByRole('link', { name: 'Quién soy' })).toBeVisible();
     await expect(panel.getByRole('link', { name: 'Contacto' })).toBeVisible();
+    await expect(panel.getByRole('link', { name: 'Contraportada' })).toHaveCount(0);
   }
-
-  await page.goto('/portfolio/categoria-de-prueba/');
-  const pageNavigation = page.getByRole('navigation', { name: 'Recorrido entre páginas del álbum' });
-  await expect(pageNavigation.getByRole('link', { name: 'Página anterior: Índice' })).toBeVisible();
-  await expect(
-    pageNavigation.getByRole('link', { name: 'Página siguiente: Segunda categoría de prueba' }),
-  ).toBeVisible();
 });
 
 test('touch navigation keeps semantic focus without drawing a frame around the album', async ({ page }, testInfo) => {
@@ -222,7 +211,7 @@ test('desktop album scales proportionally with the useful viewport without a fix
 
     const expectedWidth = Math.min(
       viewport.width - 48,
-      (viewport.height - 80) * (16 / 9),
+      (viewport.height - 88) * (16 / 9),
     );
     const expectedHeight = expectedWidth * (9 / 16);
     let baseline: { width: number; height: number } | null = null;
@@ -587,16 +576,61 @@ test('mobile page controls are visible after the section instead of relying on n
   expect(nextBox?.y ?? 0).toBeGreaterThanOrEqual((sheetBox?.y ?? 0) + (sheetBox?.height ?? 0));
 });
 
-test('the album endpoints only render navigation that exists', async ({ page }) => {
+test('the album sequence closes after Contact and reopens from the back cover', async ({ page }) => {
   await page.goto('/');
+
   let navigation = page.getByRole('navigation', { name: 'Recorrido entre páginas del álbum' });
   await expect(navigation.getByRole('link', { name: /Página anterior:/ })).toHaveCount(0);
-  await expect(navigation.getByRole('link', { name: 'Página siguiente: Quién soy' })).toBeVisible();
+  await expect(navigation.getByRole('link', { name: 'Abrir el álbum' })).toBeVisible();
 
   await page.goto('/contacto/');
   navigation = page.getByRole('navigation', { name: 'Recorrido entre páginas del álbum' });
+  await expect(navigation.getByRole('link', { name: 'Cerrar álbum' })).toHaveAttribute('href', '/contraportada/');
+
+  await page.goto('/contraportada/');
+  navigation = page.getByRole('navigation', { name: 'Recorrido entre páginas del álbum' });
+  await expect(navigation.getByRole('link', { name: 'Reabrir álbum' })).toHaveAttribute('href', '/contacto/');
   await expect(navigation.getByRole('link', { name: /Página siguiente:/ })).toHaveCount(0);
-  await expect(navigation.getByRole('link', { name: /Página anterior:/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Reabrir álbum', exact: true })).toBeVisible();
+});
+
+test('closed front and back covers share one-page geometry and Marian stays anchored to the object', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const measurements: Array<{ width: number; height: number }> = [];
+
+  for (const route of ['/', '/contraportada/']) {
+    await page.goto(route);
+    const object = page.locator('[data-album-object]');
+    const cover = page.locator('[data-album-cover]');
+    const home = page.locator('.site-home');
+    const objectBox = await object.boundingBox();
+    const coverBox = await cover.boundingBox();
+    const homeBox = await home.boundingBox();
+
+    expect(objectBox, route).not.toBeNull();
+    expect(coverBox, route).not.toBeNull();
+    expect(homeBox, route).not.toBeNull();
+    expect(Math.abs((homeBox?.x ?? 0) - (objectBox?.x ?? 0)), route).toBeLessThan(3);
+    expect(Math.abs((coverBox?.width ?? 0) - (objectBox?.width ?? 0)), route).toBeLessThan(3);
+    measurements.push({ width: coverBox?.width ?? 0, height: coverBox?.height ?? 0 });
+  }
+
+  expect(Math.abs((measurements[0]?.width ?? 0) - (measurements[1]?.width ?? 0))).toBeLessThan(2);
+  expect(Math.abs((measurements[0]?.height ?? 0) - (measurements[1]?.height ?? 0))).toBeLessThan(2);
+});
+
+test('desktop corner controls keep semantic links but hide permanent arrows and copy', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/portfolio/');
+
+  const next = page
+    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
+    .getByRole('link', { name: 'Página siguiente: Categoría de prueba' });
+
+  await expect(next.locator('.page-navigation-arrow')).toHaveCSS('display', 'none');
+  await expect(next.locator('.page-navigation-copy')).toHaveCSS('opacity', '0');
+  await next.focus();
+  await expect(next.locator('.page-navigation-copy')).toHaveCSS('opacity', '1');
 });
 
 test('reduced motion keeps corner links functional without enabling physical page drag', async ({ page }) => {
@@ -630,4 +664,119 @@ test('reduced motion keeps corner links functional without enabling physical pag
 
   await next.click();
   await expect(page).toHaveURL(/\/portfolio\/$/);
+});
+
+
+test('no-JS can close Contact to the back cover and reopen the album', async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+
+  await page.goto('/contacto/');
+  await page
+    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
+    .getByRole('link', { name: 'Cerrar álbum' })
+    .click();
+  await expect(page).toHaveURL(/\/contraportada\/$/);
+
+  await page.getByRole('link', { name: 'Reabrir álbum', exact: true }).click();
+  await expect(page).toHaveURL(/\/contacto\/$/);
+  await context.close();
+});
+
+test('cover drag opens the front cover and closes Contact into the back cover', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/');
+
+  let control = page
+    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
+    .getByRole('link', { name: 'Abrir el álbum' });
+  let box = await control.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+
+  let objectWidth = (await page.locator('[data-album-object]').boundingBox())?.width ?? 1;
+  let startX = box.x + box.width - 10;
+  let startY = box.y + box.height - 10;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX - objectWidth * 0.5, startY - 30, { steps: 8 });
+  await expect(page.locator('[data-cover-turn="open-front"]')).toHaveClass(/is-active/);
+  await page.mouse.up();
+  await expect(page).toHaveURL(/\/sobre-mi\/$/, { timeout: 3000 });
+
+  await page.goto('/contacto/');
+  control = page
+    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
+    .getByRole('link', { name: 'Cerrar álbum' });
+  box = await control.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+
+  objectWidth = (await page.locator('[data-album-spread]').boundingBox())?.width ?? 2;
+  startX = box.x + box.width - 10;
+  startY = box.y + box.height - 10;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX - objectWidth * 0.3, startY - 25, { steps: 8 });
+  await page.mouse.up();
+  await expect(page).toHaveURL(/\/contraportada\/$/, { timeout: 3000 });
+});
+
+test('editorial category mosaic balances the fixture across both pages without destructive crop', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/portfolio/categoria-de-prueba/');
+
+  const left = page.locator('[data-album-spread] > .album-page-left .photo-grid');
+  const right = page.locator('[data-album-spread] > .album-page-right .photo-grid');
+  await expect(left).toHaveAttribute('data-photo-count', '1');
+  await expect(right).toHaveAttribute('data-photo-count', '1');
+  await expect(left.locator('img')).toHaveCSS('object-fit', 'contain');
+  await expect(right.locator('img')).toHaveCSS('object-fit', 'contain');
+});
+
+test('curl destination surface keeps the stable route layout metrics for BUG-9', async ({ browser }) => {
+  const current = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  const stable = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+
+  await current.goto('/portfolio/');
+  const next = current
+    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
+    .getByRole('link', { name: 'Página siguiente: Categoría de prueba' });
+  await next.hover();
+
+  const previewSurface = current.locator('[data-curl-page="destination-left"]');
+  await expect(previewSurface).toBeAttached();
+  const previewMetrics = await previewSurface.evaluate((surface) => {
+    const heading = surface.querySelector<HTMLElement>('.section-heading');
+    const grid = surface.querySelector<HTMLElement>('.photo-grid');
+    const style = getComputedStyle(surface);
+    return {
+      paddingLeft: style.paddingLeft,
+      paddingTop: style.paddingTop,
+      headingTop: heading?.offsetTop ?? -1,
+      headingLeft: heading?.offsetLeft ?? -1,
+      gridTop: grid?.offsetTop ?? -1,
+      gridLeft: grid?.offsetLeft ?? -1,
+    };
+  });
+
+  await stable.goto('/portfolio/categoria-de-prueba/');
+  const stableSurface = stable.locator('[data-album-spread] > .album-page-left');
+  const stableMetrics = await stableSurface.evaluate((surface) => {
+    const heading = surface.querySelector<HTMLElement>('.section-heading');
+    const grid = surface.querySelector<HTMLElement>('.photo-grid');
+    const style = getComputedStyle(surface);
+    return {
+      paddingLeft: style.paddingLeft,
+      paddingTop: style.paddingTop,
+      headingTop: heading?.offsetTop ?? -1,
+      headingLeft: heading?.offsetLeft ?? -1,
+      gridTop: grid?.offsetTop ?? -1,
+      gridLeft: grid?.offsetLeft ?? -1,
+    };
+  });
+
+  expect(previewMetrics).toEqual(stableMetrics);
+  await current.close();
+  await stable.close();
 });

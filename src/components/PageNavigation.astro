@@ -10,6 +10,19 @@ const { pages, currentPath } = Astro.props;
 const currentIndex = pages.findIndex(({ href }) => href === currentPath);
 const previous = currentIndex > 0 ? pages[currentIndex - 1] : undefined;
 const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[currentIndex + 1] : undefined;
+
+const previousAria =
+  currentPath === '/contraportada/' ? 'Reabrir álbum' : previous ? `Página anterior: ${previous.label}` : '';
+const nextAria =
+  currentPath === '/' ? 'Abrir el álbum' :
+  currentPath === '/contacto/' && next?.href === '/contraportada/' ? 'Cerrar álbum' :
+  next ? `Página siguiente: ${next.label}` : '';
+
+const previousKicker = currentPath === '/contraportada/' ? 'Reabrir álbum' : 'Página anterior';
+const nextKicker =
+  currentPath === '/' ? 'Abrir álbum' :
+  currentPath === '/contacto/' && next?.href === '/contraportada/' ? 'Cerrar álbum' :
+  'Página siguiente';
 ---
 
 {(previous || next) && (
@@ -19,13 +32,13 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
         class="page-navigation-control page-navigation-previous"
         href={previous.href}
         rel="prev"
-        aria-label={`Página anterior: ${previous.label}`}
+        aria-label={previousAria}
         data-page-direction="previous"
         data-page-destination={previous.label}
       >
         <span class="page-navigation-arrow" aria-hidden="true">←</span>
         <span class="page-navigation-copy">
-          <span class="page-navigation-kicker">Página anterior</span>
+          <span class="page-navigation-kicker">{previousKicker}</span>
           <span>{previous.label}</span>
         </span>
       </a>
@@ -36,12 +49,12 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
         class="page-navigation-control page-navigation-next"
         href={next.href}
         rel="next"
-        aria-label={`Página siguiente: ${next.label}`}
+        aria-label={nextAria}
         data-page-direction="next"
         data-page-destination={next.label}
       >
         <span class="page-navigation-copy">
-          <span class="page-navigation-kicker">Página siguiente</span>
+          <span class="page-navigation-kicker">{nextKicker}</span>
           <span>{next.label}</span>
         </span>
         <span class="page-navigation-arrow" aria-hidden="true">→</span>
@@ -54,6 +67,7 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
   import { PageFlip } from 'page-flip';
 
   type TurnDirection = 'previous' | 'next';
+  type CoverMode = 'open-front' | 'close-back' | 'open-back';
 
   interface FlexibleRenderer {
     flip: PageFlip;
@@ -65,10 +79,18 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
     lastPoint: { x: number; y: number } | null;
   }
 
+  interface CoverScene {
+    host: HTMLElement;
+    source: HTMLElement;
+    destination: HTMLElement;
+    mode: CoverMode;
+    link: HTMLAnchorElement;
+  }
+
   const focusKey = 'album-page-navigation-focus';
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const preparedRenderers =
-    new WeakMap<HTMLAnchorElement, Promise<FlexibleRenderer | null>>();
+  const preparedRenderers = new WeakMap<HTMLAnchorElement, Promise<FlexibleRenderer | null>>();
+  const preparedCoverScenes = new WeakMap<HTMLAnchorElement, Promise<CoverScene | null>>();
 
   const focusDestination = () => {
     const focusOrigin = sessionStorage.getItem(focusKey);
@@ -86,6 +108,15 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
   };
 
   const getSpread = () => document.querySelector<HTMLElement>('[data-album-spread]');
+  const getStage = () => document.querySelector<HTMLElement>('.album-stage');
+  const getObject = () => document.querySelector<HTMLElement>('[data-album-object]');
+  const getNavigation = () => document.querySelector<HTMLElement>('[data-page-navigation]');
+
+  const physicalModeAvailable = () => {
+    if (reducedMotion.matches) return false;
+    const navigation = getNavigation();
+    return navigation ? getComputedStyle(navigation).position === 'absolute' : false;
+  };
 
   const getActivePage = (direction: TurnDirection) => {
     const spread = getSpread();
@@ -99,8 +130,7 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
   };
 
   const physicalTurnAvailable = () => {
-    if (reducedMotion.matches) return false;
-
+    if (!physicalModeAvailable()) return false;
     const spread = getSpread();
     const page = spread?.querySelector<HTMLElement>(':scope > .album-page');
     if (!spread || !page) return false;
@@ -116,6 +146,7 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
     element.querySelectorAll<HTMLElement>('a, button, input, select, textarea, [tabindex]').forEach(
       (node) => node.setAttribute('tabindex', '-1'),
     );
+    element.querySelectorAll('dialog').forEach((dialog) => dialog.remove());
     element.querySelectorAll<HTMLImageElement>('img').forEach((image) => {
       image.loading = 'eager';
       image.decoding = 'async';
@@ -132,21 +163,30 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
       }),
     );
 
-    if ('fonts' in document) {
-      await document.fonts.ready;
-    }
+    if ('fonts' in document) await document.fonts.ready;
 
     await new Promise<void>((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     });
   };
 
-  const clonePage = (source: HTMLElement, label: string) => {
-    const clone = sanitizeVisualClone(source.cloneNode(true) as HTMLElement);
-    clone.dataset.curlPage = label;
-    clone.setAttribute('aria-hidden', 'true');
-    clone.setAttribute('inert', '');
-    return clone;
+  const getViewContext = (source: HTMLElement) => {
+    const spread = source.closest<HTMLElement>('[data-album-spread]');
+    return ['about-view', 'contact-view', 'portfolio-index', 'category-view']
+      .filter((className) => spread?.classList.contains(className));
+  };
+
+  const createCurlPage = (source: HTMLElement, label: string) => {
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('album-curl-page', ...getViewContext(source));
+    wrapper.dataset.curlPageWrapper = label;
+    wrapper.setAttribute('aria-hidden', 'true');
+    wrapper.setAttribute('inert', '');
+
+    const surface = sanitizeVisualClone(source.cloneNode(true) as HTMLElement);
+    surface.dataset.curlPage = label;
+    wrapper.append(surface);
+    return wrapper;
   };
 
   const prepareFlexibleRenderer = (
@@ -190,12 +230,12 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
         host.setAttribute('inert', '');
 
         const currentPages = [
-          clonePage(currentLeft, 'current-left'),
-          clonePage(currentRight, 'current-right'),
+          createCurlPage(currentLeft, 'current-left'),
+          createCurlPage(currentRight, 'current-right'),
         ];
         const destinationPages = [
-          clonePage(destinationLeft, 'destination-left'),
-          clonePage(destinationRight, 'destination-right'),
+          createCurlPage(destinationLeft, 'destination-left'),
+          createCurlPage(destinationRight, 'destination-right'),
         ];
         const pages =
           direction === 'next'
@@ -338,14 +378,9 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
 
         renderer.flip.userMove(point, false);
         renderer.lastPoint = point;
-        renderer.host.style.setProperty('--curl-pointer-x', String(point.x));
-        renderer.host.style.setProperty('--curl-pointer-y', String(point.y));
 
-        if (elapsed < 1) {
-          requestAnimationFrame(frame);
-        } else {
-          resolve();
-        }
+        if (elapsed < 1) requestAnimationFrame(frame);
+        else resolve();
       };
 
       requestAnimationFrame(frame);
@@ -394,6 +429,157 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
     window.location.assign(renderer.link.href);
   };
 
+  const getCoverMode = (link: HTMLAnchorElement): CoverMode | null => {
+    const path = window.location.pathname;
+    if (path === '/' && link.dataset.pageDirection === 'next') return 'open-front';
+    if (path === '/contacto/' && new URL(link.href).pathname === '/contraportada/') return 'close-back';
+    if (path === '/contraportada/' && link.dataset.pageDirection === 'previous') return 'open-back';
+    return null;
+  };
+
+  const prepareCoverScene = (link: HTMLAnchorElement): Promise<CoverScene | null> => {
+    const cached = preparedCoverScenes.get(link);
+    if (cached) return cached;
+
+    const task = (async () => {
+      const mode = getCoverMode(link);
+      const stage = getStage();
+      const object = getObject();
+      if (!mode || !stage || !object || !physicalModeAvailable()) return null;
+
+      const sourceSelector = mode === 'close-back' ? '[data-album-spread]' : '[data-album-cover]';
+      const sourceNode = object.querySelector<HTMLElement>(sourceSelector);
+      if (!sourceNode) return null;
+
+      try {
+        const response = await fetch(link.href, {
+          credentials: 'same-origin',
+          headers: { 'X-Album-Cover-Preview': '1' },
+        });
+        if (!response.ok) return null;
+
+        const html = await response.text();
+        const parsed = new DOMParser().parseFromString(html, 'text/html');
+        const destinationSelector = mode === 'close-back' ? '[data-album-cover="back"]' : '[data-album-spread]';
+        const destinationNode = parsed.querySelector<HTMLElement>(destinationSelector);
+        if (!destinationNode) return null;
+
+        const host = document.createElement('div');
+        host.className = 'album-cover-turn-scene';
+        host.dataset.coverTurn = mode;
+        host.setAttribute('aria-hidden', 'true');
+        host.setAttribute('inert', '');
+
+        const source = sanitizeVisualClone(sourceNode.cloneNode(true) as HTMLElement);
+        const destination = sanitizeVisualClone(destinationNode.cloneNode(true) as HTMLElement);
+        source.classList.add('cover-turn-source');
+        destination.classList.add('cover-turn-destination');
+        host.append(source, destination);
+        stage.append(host);
+        await waitForVisualAssets(host);
+
+        host.dataset.coverReady = 'true';
+        return { host, source, destination, mode, link };
+      } catch {
+        preparedCoverScenes.delete(link);
+        return null;
+      }
+    })();
+
+    preparedCoverScenes.set(link, task);
+    return task;
+  };
+
+  const applyCoverProgress = (
+    scene: CoverScene,
+    progress: number,
+    verticalDelta: number,
+  ) => {
+    const p = Math.max(0, Math.min(progress, 1));
+    const stage = getStage();
+    if (!stage) return;
+
+    stage.classList.add('is-cover-turning');
+    scene.host.classList.add('is-active');
+    scene.host.style.setProperty('--cover-progress', String(p));
+
+    const tilt = Math.max(-5, Math.min(5, verticalDelta * 0.025));
+    const { source, destination, mode } = scene;
+
+    if (mode === 'open-front') {
+      destination.style.clipPath = `inset(0 ${25 * (1 - p)}%)`;
+      destination.style.opacity = String(Math.min(1, p * 1.6));
+      source.style.left = `${25 + 25 * p}%`;
+      source.style.width = '50%';
+      source.style.transformOrigin = 'left center';
+      source.style.transform = `rotateY(${-180 * p}deg) rotateX(${tilt}deg)`;
+    } else if (mode === 'open-back') {
+      destination.style.clipPath = `inset(0 ${25 * (1 - p)}%)`;
+      destination.style.opacity = String(Math.min(1, p * 1.6));
+      source.style.left = `${25 - 25 * p}%`;
+      source.style.width = '50%';
+      source.style.transformOrigin = 'right center';
+      source.style.transform = `rotateY(${180 * p}deg) rotateX(${tilt}deg)`;
+    } else {
+      source.style.clipPath = `inset(0 ${25 * p}%)`;
+      destination.style.left = `${25 * p}%`;
+      destination.style.width = '50%';
+      destination.style.opacity = String(Math.min(1, 0.15 + p));
+      destination.style.transformOrigin = 'right center';
+      destination.style.transform = `rotateY(${180 * (1 - p)}deg) rotateX(${-tilt}deg)`;
+    }
+  };
+
+  const destroyCoverScene = (scene: CoverScene) => {
+    getStage()?.classList.remove('is-cover-turning');
+    scene.host.remove();
+    preparedCoverScenes.delete(scene.link);
+  };
+
+  const animateCoverTo = async (
+    scene: CoverScene,
+    from: number,
+    to: number,
+    duration: number,
+  ) => {
+    const startedAt = performance.now();
+
+    await new Promise<void>((resolve) => {
+      const frame = (now: number) => {
+        const elapsed = Math.min(1, (now - startedAt) / Math.max(duration, 1));
+        const eased = 1 - Math.pow(1 - elapsed, 3);
+        applyCoverProgress(scene, from + (to - from) * eased, 0);
+
+        if (elapsed < 1) requestAnimationFrame(frame);
+        else resolve();
+      };
+      requestAnimationFrame(frame);
+    });
+  };
+
+  const settleCoverTurn = async (
+    scene: CoverScene,
+    progress: number,
+    commit: boolean,
+    origin: 'pointer' | 'keyboard' = 'pointer',
+  ) => {
+    const clamped = Math.max(0, Math.min(progress, 1));
+    const target = commit ? 1 : 0;
+    const distance = Math.abs(target - clamped);
+    await animateCoverTo(scene, clamped, target, Math.round(170 + distance * 250));
+
+    if (!commit) {
+      destroyCoverScene(scene);
+      return;
+    }
+
+    sessionStorage.setItem(focusKey, origin);
+    document.documentElement.dataset.albumTurnNavigation = 'committed';
+    scene.host.dataset.coverSettled = 'true';
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    window.location.assign(scene.link.href);
+  };
+
   const navigateDirect = (
     link: HTMLAnchorElement,
     origin: 'keyboard' | 'pointer',
@@ -433,9 +619,26 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
     let dragging = false;
     let suppressClick = false;
     let activeRenderer: FlexibleRenderer | null = null;
+    let activeCover: CoverScene | null = null;
 
-    const warmRenderer = () => {
-      if (!physicalTurnAvailable()) return;
+    const warmInteraction = () => {
+      if (!physicalModeAvailable()) return;
+      const coverMode = getCoverMode(link);
+
+      if (coverMode) {
+        void prepareCoverScene(link).then((scene) => {
+          activeCover = scene;
+          if (!scene || pointerId === null || !dragging) return;
+          const pageWidth = getObject()?.getBoundingClientRect().width ?? 1;
+          const raw = lastX - startX;
+          const distance =
+            coverMode === 'open-back' ? raw :
+            coverMode === 'close-back' ? -raw :
+            -raw;
+          applyCoverProgress(scene, Math.max(0, distance) / pageWidth, lastY - startY);
+        });
+        return;
+      }
 
       void prepareFlexibleRenderer(link, direction).then((renderer) => {
         activeRenderer = renderer;
@@ -445,8 +648,8 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
     };
 
     link.draggable = false;
-    link.addEventListener('pointerenter', warmRenderer, { once: true });
-    link.addEventListener('focus', warmRenderer, { once: true });
+    link.addEventListener('pointerenter', warmInteraction, { once: true });
+    link.addEventListener('focus', warmInteraction, { once: true });
 
     link.addEventListener('click', (event) => {
       if (suppressClick) {
@@ -455,17 +658,32 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
         return;
       }
 
-      sessionStorage.setItem(focusKey, event.detail === 0 ? 'keyboard' : 'pointer');
+      const coverMode = getCoverMode(link);
+      if (!coverMode || !physicalModeAvailable()) {
+        sessionStorage.setItem(focusKey, event.detail === 0 ? 'keyboard' : 'pointer');
+        return;
+      }
+
+      event.preventDefault();
+      const origin = event.detail === 0 ? 'keyboard' : 'pointer';
+      void prepareCoverScene(link).then((scene) => {
+        if (!scene) {
+          navigateDirect(link, origin);
+          return;
+        }
+        applyCoverProgress(scene, 0, 0);
+        void settleCoverTurn(scene, 0, true, origin);
+      });
     });
 
     link.addEventListener('keydown', (event) => {
       if (event.key !== ' ' || event.repeat) return;
       event.preventDefault();
-      navigateDirect(link, 'keyboard');
+      link.click();
     });
 
     link.addEventListener('pointerdown', (event) => {
-      if (!physicalTurnAvailable() || !event.isPrimary || event.button !== 0) return;
+      if (!physicalModeAvailable() || !event.isPrimary || event.button !== 0) return;
 
       pointerId = event.pointerId;
       startX = event.clientX;
@@ -474,7 +692,7 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
       lastY = event.clientY;
       dragging = false;
       suppressClick = false;
-      warmRenderer();
+      warmInteraction();
     });
 
     document.addEventListener('pointermove', (event) => {
@@ -483,10 +701,19 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
       lastX = event.clientX;
       lastY = event.clientY;
       const rawDistance = event.clientX - startX;
-      if (!dragging && Math.abs(rawDistance) < 8) return;
+      if (!dragging && Math.hypot(rawDistance, event.clientY - startY) < 8) return;
 
       dragging = true;
       event.preventDefault();
+
+      const coverMode = getCoverMode(link);
+      if (coverMode) {
+        if (!activeCover) return;
+        const pageWidth = getObject()?.getBoundingClientRect().width ?? 1;
+        const distance = coverMode === 'open-back' ? rawDistance : -rawDistance;
+        applyCoverProgress(activeCover, Math.max(0, distance) / pageWidth, event.clientY - startY);
+        return;
+      }
 
       if (!activeRenderer) return;
       if (!activeRenderer.started) {
@@ -500,9 +727,15 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
       if (pointerId !== event.pointerId) return;
 
       const rawDistance = event.clientX - startX;
-      const distance = direction === 'next' ? -rawDistance : rawDistance;
-      const page = getActivePage(direction);
-      const pageWidth = page?.getBoundingClientRect().width ?? 1;
+      const coverMode = getCoverMode(link);
+      const pageWidth = coverMode
+        ? getObject()?.getBoundingClientRect().width ?? 1
+        : getActivePage(direction)?.getBoundingClientRect().width ?? 1;
+      const distance = coverMode === 'open-back'
+        ? rawDistance
+        : direction === 'next'
+          ? -rawDistance
+          : rawDistance;
       const progress = Math.max(0, Math.min(distance / pageWidth, 1));
       pointerId = null;
 
@@ -511,6 +744,15 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
       suppressClick = true;
       dragging = false;
       event.preventDefault();
+
+      if (coverMode) {
+        if (!activeCover) {
+          if (progress >= 0.4) navigateDirect(link, 'pointer');
+          return;
+        }
+        void settleCoverTurn(activeCover, progress, progress >= 0.4);
+        return;
+      }
 
       if (!activeRenderer?.started) {
         if (progress >= 0.4) navigateDirect(link, 'pointer');
@@ -528,13 +770,52 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
 
       suppressClick = true;
       dragging = false;
-      if (activeRenderer?.started) {
-        const page = getActivePage(direction);
-        const pageWidth = page?.getBoundingClientRect().width ?? 1;
+      const coverMode = getCoverMode(link);
+      if (coverMode && activeCover) {
+        const pageWidth = getObject()?.getBoundingClientRect().width ?? 1;
+        const raw = lastX - startX;
+        const distance = coverMode === 'open-back' ? raw : -raw;
+        const progress = Math.max(0, Math.min(distance / pageWidth, 1));
+        void settleCoverTurn(activeCover, progress, false);
+      } else if (activeRenderer?.started) {
+        const pageWidth = getActivePage(direction)?.getBoundingClientRect().width ?? 1;
         const distance = direction === 'next' ? startX - lastX : lastX - startX;
         const progress = Math.max(0, Math.min(distance / pageWidth, 1));
         void settleFlexibleTurn(activeRenderer, progress, false);
       }
+    });
+  });
+
+  document.querySelectorAll<HTMLAnchorElement>('[data-cover-open-action]').forEach((link) => {
+    const matchingControl = document.querySelector<HTMLAnchorElement>(
+      `[data-page-navigation] a[href="${link.getAttribute('href')}"]`,
+    );
+    if (!matchingControl) return;
+
+    link.addEventListener('pointerenter', () => {
+      if (physicalModeAvailable()) void prepareCoverScene(matchingControl);
+    }, { once: true });
+
+    link.addEventListener('focus', () => {
+      if (physicalModeAvailable()) void prepareCoverScene(matchingControl);
+    }, { once: true });
+
+    link.addEventListener('click', (event) => {
+      if (!physicalModeAvailable()) {
+        sessionStorage.setItem(focusKey, event.detail === 0 ? 'keyboard' : 'pointer');
+        return;
+      }
+
+      event.preventDefault();
+      const origin = event.detail === 0 ? 'keyboard' : 'pointer';
+      void prepareCoverScene(matchingControl).then((scene) => {
+        if (!scene) {
+          navigateDirect(matchingControl, origin);
+          return;
+        }
+        applyCoverProgress(scene, 0, 0);
+        void settleCoverTurn(scene, 0, true, origin);
+      });
     });
   });
 
@@ -558,7 +839,8 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
     if (!link) return;
 
     event.preventDefault();
-    navigateDirect(link, 'keyboard');
+    if (getCoverMode(link) && physicalModeAvailable()) link.click();
+    else navigateDirect(link, 'keyboard');
   });
 
   document.documentElement.dataset.pageNavigationReady = 'true';
