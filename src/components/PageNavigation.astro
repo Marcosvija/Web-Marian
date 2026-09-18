@@ -52,16 +52,25 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
   const focusKey = 'album-page-navigation-focus';
 
   const focusDestination = () => {
-    if (sessionStorage.getItem(focusKey) !== '1') return;
+    const focusOrigin = sessionStorage.getItem(focusKey);
+    if (!focusOrigin) return;
+
     sessionStorage.removeItem(focusKey);
-    document.querySelector<HTMLElement>('#contenido')?.focus({ preventScroll: true });
+    const main = document.querySelector<HTMLElement>('#contenido');
+    if (!main) return;
+
+    main.dataset.pageFocusOrigin = focusOrigin;
+    main.focus({ preventScroll: true });
+    main.addEventListener('blur', () => {
+      delete main.dataset.pageFocusOrigin;
+    }, { once: true });
   };
 
   focusDestination();
 
   document.querySelectorAll<HTMLAnchorElement>('[data-page-navigation] a').forEach((link) => {
-    link.addEventListener('click', () => {
-      sessionStorage.setItem(focusKey, '1');
+    link.addEventListener('click', (event) => {
+      sessionStorage.setItem(focusKey, event.detail === 0 ? 'keyboard' : 'pointer');
     });
   });
 
@@ -85,7 +94,7 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
     if (!link) return;
 
     event.preventDefault();
-    sessionStorage.setItem(focusKey, '1');
+    sessionStorage.setItem(focusKey, 'keyboard');
     window.location.assign(link.href);
   });
 
