@@ -160,6 +160,8 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
     let dragging = false;
     let suppressClick = false;
 
+    link.draggable = false;
+
     link.addEventListener('click', (event) => {
       if (suppressClick) {
         event.preventDefault();
@@ -182,10 +184,9 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
       startX = event.clientX;
       dragging = false;
       suppressClick = false;
-      link.setPointerCapture(event.pointerId);
     });
 
-    link.addEventListener('pointermove', (event) => {
+    document.addEventListener('pointermove', (event) => {
       if (pointerId !== event.pointerId) return;
 
       const rawDistance = event.clientX - startX;
@@ -199,7 +200,7 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
       prepareTurn(link, direction, Math.max(0, distance) / pageWidth);
     });
 
-    link.addEventListener('pointerup', (event) => {
+    document.addEventListener('pointerup', (event) => {
       if (pointerId !== event.pointerId) return;
 
       const rawDistance = event.clientX - startX;
@@ -207,8 +208,6 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
       const page = getActivePage(direction);
       const pageWidth = page?.getBoundingClientRect().width ?? 1;
       const progress = Math.max(0, distance) / pageWidth;
-
-      if (link.hasPointerCapture(event.pointerId)) link.releasePointerCapture(event.pointerId);
       pointerId = null;
 
       if (!dragging) return;
@@ -224,9 +223,8 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
       }
     });
 
-    link.addEventListener('pointercancel', (event) => {
+    document.addEventListener('pointercancel', (event) => {
       if (pointerId !== event.pointerId) return;
-      if (link.hasPointerCapture(event.pointerId)) link.releasePointerCapture(event.pointerId);
       pointerId = null;
       if (dragging) {
         suppressClick = true;
