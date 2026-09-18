@@ -654,23 +654,63 @@ test('closed front and back covers share one-page geometry and Marian stays anch
 
   for (const route of ['/', '/contraportada/']) {
     await page.goto(route);
+    const stage = page.locator('.album-stage');
     const object = page.locator('[data-album-object]');
     const cover = page.locator('[data-album-cover]');
     const home = page.locator('.site-home');
+    const stageBox = await stage.boundingBox();
     const objectBox = await object.boundingBox();
     const coverBox = await cover.boundingBox();
     const homeBox = await home.boundingBox();
 
+    expect(stageBox, route).not.toBeNull();
     expect(objectBox, route).not.toBeNull();
     expect(coverBox, route).not.toBeNull();
     expect(homeBox, route).not.toBeNull();
     expect(Math.abs((homeBox?.x ?? 0) - (objectBox?.x ?? 0)), route).toBeLessThan(3);
     expect(Math.abs((coverBox?.width ?? 0) - (objectBox?.width ?? 0)), route).toBeLessThan(3);
+
+    const stageSpine = (stageBox?.x ?? 0) + (stageBox?.width ?? 0) / 2;
+    const objectSpine = route === '/'
+      ? (objectBox?.x ?? 0)
+      : (objectBox?.x ?? 0) + (objectBox?.width ?? 0);
+    expect(Math.abs(objectSpine - stageSpine), route).toBeLessThan(3);
+
     measurements.push({ width: coverBox?.width ?? 0, height: coverBox?.height ?? 0 });
   }
 
   expect(Math.abs((measurements[0]?.width ?? 0) - (measurements[1]?.width ?? 0))).toBeLessThan(2);
   expect(Math.abs((measurements[0]?.height ?? 0) - (measurements[1]?.height ?? 0))).toBeLessThan(2);
+});
+
+test('desktop bookmark stays inside the viewport while preserving its inserted ribbon geometry', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/');
+  const bookmark = page.locator('[data-bookmark-index]');
+  const summary = bookmark.locator('summary');
+
+  await expect(bookmark).toHaveAttribute('data-bookmark-viewport-ready', 'true');
+  await expect(summary).toBeVisible();
+
+  const expectInsideViewport = async (locator: import('@playwright/test').Locator) => {
+    const box = await locator.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) return;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(1281);
+    expect(box.y + box.height).toBeLessThanOrEqual(801);
+  };
+
+  await expectInsideViewport(summary);
+  await summary.focus();
+  await expectInsideViewport(summary);
+
+  await summary.click();
+  const panel = page.getByRole('navigation', { name: 'Índice del álbum' });
+  await expect(panel).toBeVisible();
+  await expectInsideViewport(summary);
+  await expectInsideViewport(panel);
 });
 
 test('desktop corner controls keep semantic links but hide permanent arrows and copy', async ({ page }) => {
@@ -737,7 +777,7 @@ test('no-JS can close Contact to the back cover and reopen the album', async ({ 
   await context.close();
 });
 
-test('hard-cover renderer is opaque and bidirectional at both ends with forty-percent commit', async ({ page }, testInfo) => {
+test('flexible-cover renderer is opaque and bidirectional at both ends with forty-percent commit', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === 'mobile-chromium', 'Physical cover drag is desktop-only; mobile keeps labelled controls.');
   await page.setViewportSize({ width: 1280, height: 800 });
 
@@ -758,7 +798,8 @@ test('hard-cover renderer is opaque and bidirectional at both ends with forty-pe
 
     let renderer = page.locator(`[data-cover-turn="${current.mode}"]`);
     await expect(renderer).toHaveAttribute('data-cover-ready', 'true');
-    await expect(renderer.locator(`[data-cover-page-wrapper="${current.cover}"]`)).toHaveAttribute('data-density', 'hard');
+    await expect(renderer.locator(`[data-cover-page-wrapper="${current.cover}"]`)).toHaveAttribute('data-density', 'soft');
+    await expect(renderer.locator(`[data-cover-page-wrapper="${current.cover}"]`)).toHaveClass(/album-cover-flex-page/);
     await expect(renderer.locator(`[data-cover-page="${current.cover}"]`)).toHaveCSS('opacity', '1');
 
     const pageWidth = (await page.locator('.album-stage').boundingBox())?.width ?? 2;

@@ -41,3 +41,32 @@ const activePath = normalizePath(currentPath);
     </ul>
   </nav>
 </details>
+
+<script>
+  const bookmark = document.querySelector<HTMLDetailsElement>('[data-bookmark-index]');
+
+  const updateBookmarkViewportGeometry = () => {
+    if (!bookmark) return;
+
+    const albumObject = bookmark.closest<HTMLElement>('[data-album-object]');
+    const top = albumObject?.getBoundingClientRect().top ?? bookmark.getBoundingClientRect().top;
+    const viewportGap = 8;
+    const desiredLift = 32;
+    const lift = Math.max(0, Math.min(desiredLift, top - viewportGap));
+    const remainingHeadroom = Math.max(0, top - lift - viewportGap);
+
+    bookmark.style.setProperty('--bookmark-lift', `${lift}px`);
+    bookmark.style.setProperty('--bookmark-hover-pull', `${Math.min(6, remainingHeadroom)}px`);
+    bookmark.style.setProperty('--bookmark-open-pull', `${Math.min(24, remainingHeadroom)}px`);
+    bookmark.style.setProperty(
+      '--bookmark-panel-viewport-top',
+      `${Math.max(viewportGap, top + 14)}px`,
+    );
+    bookmark.dataset.bookmarkViewportReady = 'true';
+  };
+
+  bookmark?.addEventListener('toggle', () => requestAnimationFrame(updateBookmarkViewportGeometry));
+  window.addEventListener('resize', updateBookmarkViewportGeometry);
+  window.visualViewport?.addEventListener('resize', updateBookmarkViewportGeometry);
+  requestAnimationFrame(updateBookmarkViewportGeometry);
+</script>

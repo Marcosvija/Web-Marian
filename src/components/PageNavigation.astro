@@ -214,11 +214,11 @@ const nextKicker =
     return wrapper;
   };
 
-  const createHardCoverPage = (source: HTMLElement, label: string) => {
+  const createFlexibleCoverPage = (source: HTMLElement, label: string) => {
     const wrapper = document.createElement('div');
-    wrapper.className = 'album-cover-page album-cover-hard-page';
+    wrapper.className = 'album-cover-page album-cover-flex-page';
     wrapper.dataset.coverPageWrapper = label;
-    wrapper.dataset.density = 'hard';
+    wrapper.dataset.density = 'soft';
     wrapper.setAttribute('aria-hidden', 'true');
     wrapper.setAttribute('inert', '');
 
@@ -232,7 +232,7 @@ const nextKicker =
     const wrapper = document.createElement('div');
     wrapper.className = 'album-cover-page album-cover-blank-page';
     wrapper.dataset.coverPageWrapper = label;
-    wrapper.dataset.density = 'hard';
+    wrapper.dataset.density = 'soft';
     wrapper.setAttribute('aria-hidden', 'true');
     wrapper.setAttribute('inert', '');
     return wrapper;
@@ -545,22 +545,22 @@ const nextKicker =
 
         if (mode === 'open-front' || mode === 'close-front') {
           pages = [
-            createHardCoverPage(cover, 'front-cover'),
+            createCoverBlankPage('front-placeholder'),
+            createFlexibleCoverPage(cover, 'front-cover'),
             createCoverSpreadPage(left, 'spread-left'),
             createCoverSpreadPage(right, 'spread-right'),
-            createCoverBlankPage('back-placeholder'),
           ];
-          startPage = mode === 'open-front' ? 0 : 1;
-          endPage = mode === 'open-front' ? 1 : 0;
+          startPage = mode === 'open-front' ? 0 : 2;
+          endPage = mode === 'open-front' ? 2 : 0;
         } else {
           pages = [
-            createCoverBlankPage('front-placeholder'),
             createCoverSpreadPage(left, 'spread-left'),
             createCoverSpreadPage(right, 'spread-right'),
-            createHardCoverPage(cover, 'back-cover'),
+            createFlexibleCoverPage(cover, 'back-cover'),
+            createCoverBlankPage('back-placeholder'),
           ];
-          startPage = mode === 'close-back' ? 1 : 3;
-          endPage = mode === 'close-back' ? 3 : 1;
+          startPage = mode === 'close-back' ? 0 : 2;
+          endPage = mode === 'close-back' ? 2 : 0;
         }
 
         host.append(...pages);
@@ -572,12 +572,12 @@ const nextKicker =
           size: 'fixed',
           startPage,
           drawShadow: true,
-          flippingTime: 420,
+          flippingTime: 520,
           usePortrait: false,
           startZIndex: 24,
           autoSize: false,
-          maxShadowOpacity: 0.48,
-          showCover: true,
+          maxShadowOpacity: 0.42,
+          showCover: false,
           mobileScrollSupport: true,
           clickEventForward: false,
           useMouseEvents: false,
@@ -689,7 +689,9 @@ const nextKicker =
     await new Promise<void>((resolve) => {
       const frame = (now: number) => {
         const elapsed = Math.min(1, (now - startedAt) / Math.max(duration, 1));
-        const eased = 1 - Math.pow(1 - elapsed, 3);
+        const eased = elapsed < 0.5
+          ? 4 * Math.pow(elapsed, 3)
+          : 1 - Math.pow(-2 * elapsed + 2, 3) / 2;
         const point = {
           x: start.x + (target.x - start.x) * eased,
           y: start.y + (target.y - start.y) * eased,
@@ -737,8 +739,8 @@ const nextKicker =
           y: rect.height - 1,
         };
     const duration = commit
-      ? Math.round(190 + (1 - clamped) * 250)
-      : Math.round(170 + clamped * 140);
+      ? Math.round(260 + (1 - clamped) * 320)
+      : Math.round(220 + clamped * 180);
 
     await animateCoverTo(scene, target, duration);
 
