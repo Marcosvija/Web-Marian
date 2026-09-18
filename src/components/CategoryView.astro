@@ -9,7 +9,7 @@ interface Props {
   next?: CategoryEntry | undefined;
 }
 
-const { category, previous, next } = Astro.props;
+const { category } = Astro.props;
 const { title, description, photos } = category.data;
 ---
 
@@ -28,23 +28,4 @@ const { title, description, photos } = category.data;
   ) : (
     <p class="empty-state" role="status">Esta categoría todavía no contiene fotografías.</p>
   )}
-
-  <nav class="category-pagination" aria-label="Recorrido entre categorías">
-    {previous ? (
-      <a class="category-pagination-previous" rel="prev" href={`/portfolio/${previous.data.slug}/`}>
-        <span aria-hidden="true">←</span> {previous.data.title}
-      </a>
-    ) : <span class="category-pagination-placeholder" aria-hidden="true"></span>}
-    <a class="category-pagination-index" href="/portfolio/">Índice</a>
-    {next ? (
-      <a class="category-pagination-next" rel="next" href={`/portfolio/${next.data.slug}/`}>
-        <span class="category-pagination-label">Siguiente categoría</span>
-        <span>{next.data.title} <span aria-hidden="true">→</span></span>
-      </a>
-    ) : (
-      <a class="category-pagination-contact" href="/contacto/">
-        Contacto <span aria-hidden="true">→</span>
-      </a>
-    )}
-  </nav>
 </article>
