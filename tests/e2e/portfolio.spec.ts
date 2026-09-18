@@ -39,6 +39,7 @@ test('keyboard page navigation follows the editorial sequence and moves focus to
   await page.keyboard.press('ArrowRight');
   await expect(page).toHaveURL(/\/portfolio\/$/);
   await expect(page.locator('#contenido')).toBeFocused();
+  await expect(page.locator('#contenido')).toHaveAttribute('data-page-focus-origin', 'keyboard');
   await expect(page.locator('html')).toHaveAttribute('data-page-navigation-ready', 'true');
 
   await page.keyboard.press('ArrowLeft');
@@ -140,10 +141,8 @@ test('the bookmark remains an album-side tab on desktop without replacing page c
   expect(tabBox).not.toBeNull();
   expect(previousBox).not.toBeNull();
   expect(nextBox).not.toBeNull();
-  expect(previousBox?.x ?? Infinity).toBeLessThan((albumBox?.x ?? 0) + 8);
-  expect((nextBox?.x ?? 0) + (nextBox?.width ?? 0)).toBeGreaterThan(
-    (albumBox?.x ?? 0) + (albumBox?.width ?? 0) - 8,
-  );
+  expect((previousBox?.x ?? 0) + (previousBox?.width ?? 0)).toBeLessThanOrEqual(albumBox?.x ?? 0);
+  expect(nextBox?.x ?? 0).toBeGreaterThanOrEqual((albumBox?.x ?? 0) + (albumBox?.width ?? 0));
   await expect(tab).toHaveCSS('writing-mode', 'vertical-rl');
 
   await tab.click();
@@ -152,6 +151,49 @@ test('the bookmark remains an album-side tab on desktop without replacing page c
     .boundingBox();
   expect(panelBox).not.toBeNull();
   expect((panelBox?.x ?? 0) + (panelBox?.width ?? 0)).toBeLessThan(tabBox?.x ?? 0);
+});
+
+test('touch navigation keeps semantic focus without drawing a frame around the album', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium', 'Touch focus regression runs on mobile Chromium.');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/sobre-mi/');
+  const next = page
+    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
+    .getByRole('link', { name: 'Página siguiente: Índice' });
+
+  await next.tap();
+  await expect(page).toHaveURL(/\/portfolio\/$/);
+
+  const main = page.locator('#contenido');
+  await expect(main).toBeFocused();
+  await expect(main).toHaveAttribute('data-page-focus-origin', 'pointer');
+  await expect(main).toHaveCSS('outline-style', 'none');
+});
+
+test('desktop side controls stay outside the album even when expanded', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto('/portfolio/categoria-de-prueba/');
+
+  const albumBox = await page.locator('.album-frame').boundingBox();
+  const previous = page
+    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
+    .getByRole('link', { name: 'Página anterior: Índice' });
+  const next = page
+    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
+    .getByRole('link', { name: 'Página siguiente: Segunda categoría de prueba' });
+
+  expect(albumBox).not.toBeNull();
+
+  await previous.hover();
+  const previousExpanded = await previous.boundingBox();
+  expect(previousExpanded).not.toBeNull();
+  expect((previousExpanded?.x ?? 0) + (previousExpanded?.width ?? 0)).toBeLessThanOrEqual(albumBox?.x ?? 0);
+
+  await next.hover();
+  const nextExpanded = await next.boundingBox();
+  expect(nextExpanded).not.toBeNull();
+  expect(nextExpanded?.x ?? 0).toBeGreaterThanOrEqual((albumBox?.x ?? 0) + (albumBox?.width ?? 0));
 });
 
 test('mobile page controls are visible after the section instead of relying on narrow side targets', async ({ page }) => {
