@@ -1,4 +1,13 @@
-<dialog class="photo-viewer" data-photo-viewer aria-labelledby="photo-viewer-title">
+---
+import type { CategoryPhotoLocation } from '../lib/category-layout';
+
+interface Props {
+  photos: CategoryPhotoLocation[];
+}
+const { photos } = Astro.props;
+---
+
+<dialog class="photo-viewer" data-photo-viewer data-photo-locations={JSON.stringify(photos)} aria-labelledby="photo-viewer-title">
   <div class="viewer-surface">
     <h2 id="photo-viewer-title" class="visually-hidden">Visor de fotografías</h2>
     <form method="dialog" class="viewer-close-form">
@@ -22,10 +31,14 @@
 </dialog>
 
 <script>
+  import type { CategoryPhotoLocation } from '../lib/category-layout';
+
   const viewer = document.querySelector<HTMLDialogElement>('[data-photo-viewer]');
   const triggers = [...document.querySelectorAll<HTMLAnchorElement>('[data-photo-trigger]')];
 
   if (viewer && triggers.length > 0 && typeof viewer.showModal === 'function') {
+    const photos: CategoryPhotoLocation[] = JSON.parse(viewer.dataset.photoLocations ?? '[]');
+    const localTriggers = new Map(triggers.map((trigger) => [trigger.dataset.photoId, trigger]));
     const image = viewer.querySelector<HTMLImageElement>('[data-viewer-image]');
     const status = viewer.querySelector<HTMLElement>('[data-viewer-status]');
     const previous = viewer.querySelector<HTMLButtonElement>('[data-viewer-previous]');
@@ -35,6 +48,7 @@
     let opener: HTMLAnchorElement | null = null;
     let activePointerId: number | null = null;
     let pointerStartX: number | null = null;
+    let navigating = false;
 
     const updateUrl = (photoId?: string) => {
       const url = new URL(window.location.href);
@@ -48,8 +62,19 @@
     };
 
     const showPhoto = (index: number) => {
-      const wrappedIndex = (index + triggers.length) % triggers.length;
-      const trigger = triggers[wrappedIndex];
+      if (navigating || photos.length === 0) return;
+      const wrappedIndex = (index + photos.length) % photos.length;
+      const photo = photos[wrappedIndex];
+      if (!photo) return;
+      if (photo.path !== window.location.pathname) {
+        const destination = new URL(photo.path, window.location.origin);
+        destination.searchParams.set('foto', photo.id);
+        navigating = true;
+        // A real document navigation creates the history entry for the next spread.
+        window.location.assign(destination);
+        return;
+      }
+      const trigger = localTriggers.get(photo.id);
       const source = trigger?.querySelector<HTMLImageElement>('img');
       if (!trigger || !source || !image) return;
 
@@ -58,16 +83,17 @@
       image.srcset = source.srcset;
       image.sizes = '100vw';
       image.alt = source.alt;
-      const hasMultiple = triggers.length > 1;
+      const hasMultiple = photos.length > 1;
       if (previous) previous.hidden = !hasMultiple;
       if (next) next.hidden = !hasMultiple;
-      if (status) status.textContent = `Fotografía ${currentIndex + 1} de ${triggers.length}`;
+      if (status) status.textContent = `Fotografía ${photo.position} de ${photos.length}`;
       updateUrl(trigger.dataset.photoId);
+      return true;
     };
 
     const openViewer = (index: number, source?: HTMLAnchorElement) => {
+      if (!showPhoto(index)) return;
       opener = source ?? null;
-      showPhoto(index);
       if (!viewer.open) viewer.showModal();
       close?.focus();
     };
@@ -77,9 +103,11 @@
       pointerStartX = null;
     };
 
-    triggers.forEach((trigger, index) => {
+    triggers.forEach((trigger) => {
       trigger.addEventListener('click', (event) => {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        const index = photos.findIndex((photo) => photo.id === trigger.dataset.photoId);
+        if (index < 0) return;
         event.preventDefault();
         openViewer(index, trigger);
       });
@@ -120,17 +148,19 @@
 
     viewer.addEventListener('close', () => {
       resetPointer();
+      if (navigating) return;
       updateUrl();
       opener?.focus();
       opener = null;
     });
 
+    // A restored document from bfcache must be able to cross a spread again.
+    window.addEventListener('pageshow', () => { navigating = false; });
+
     const requestedPhoto = new URL(window.location.href).searchParams.get('foto');
     if (requestedPhoto) {
-      const requestedIndex = triggers.findIndex(
-        (trigger) => trigger.dataset.photoId === requestedPhoto,
-      );
-      if (requestedIndex >= 0) openViewer(requestedIndex, triggers[requestedIndex]);
+      const requestedIndex = photos.findIndex((photo) => photo.id === requestedPhoto);
+      if (requestedIndex >= 0) openViewer(requestedIndex, localTriggers.get(requestedPhoto));
     }
   }
 </script>

@@ -1,6 +1,6 @@
 ---
 import type { CategoryEntry } from '../lib/categories';
-import { getCategorySpreads } from '../lib/category-layout';
+import { getCategoryPhotoLocations, getCategorySpreads } from '../lib/category-layout';
 import PhotoGrid from './PhotoGrid.astro';
 import PhotoViewer from './PhotoViewer.astro';
 
@@ -46,5 +46,5 @@ if (!spread) throw new Error('Category spread unavailable');
     {spread.right.length > 0 && <PhotoGrid photos={spread.right} />}
   </div>
 
-  {photos.length > 0 && <PhotoViewer />}
+  {photos.length > 0 && <PhotoViewer photos={getCategoryPhotoLocations(category.data.slug, photos)} />}
 </article>

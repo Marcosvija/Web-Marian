@@ -9,6 +9,7 @@
     "npm": ">=11 <13"
   },
   "scripts": {
+    "postinstall": "node ./scripts/patch-page-flip.mjs",
     "dev": "astro dev --force",
     "dev:test": "node ./scripts/astro-with-fixtures.mjs dev --force --host 127.0.0.1 --port 4321",
     "check": "astro check",
