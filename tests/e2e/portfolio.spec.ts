@@ -415,6 +415,113 @@ test('desktop physical corners stay attached to the lower edge of every interior
   }
 });
 
+test('continuous turn prepares real adjacent content as an inert visual scene', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/sobre-mi/');
+  await expect(page.locator('html')).toHaveAttribute('data-page-navigation-ready', 'true');
+
+  const next = page
+    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
+    .getByRole('link', { name: 'Página siguiente: Índice' });
+
+  await next.hover();
+
+  const preview = page.locator('[data-turn-preview][data-turn-preview-direction="next"]');
+  await expect(preview).toBeAttached();
+  await expect(preview).toHaveAttribute('aria-hidden', 'true');
+  await expect(preview).toHaveAttribute('inert', '');
+  await expect(preview.locator('[data-turn-preview-page="left"]')).toContainText('Atrapando instantes');
+
+  const rightPage = page.locator('.album-page-right');
+  const pageWidth = (await rightPage.boundingBox())?.width ?? 1;
+  const box = await next.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+
+  const startX = box.x + box.width - 10;
+  const startY = box.y + box.height - 10;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX - pageWidth * 0.25, startY - 4, { steps: 6 });
+
+  await expect(preview).toHaveClass(/is-active/);
+  const back = rightPage.locator(':scope > .album-turn-back');
+  await expect(back).toBeAttached();
+  await expect(back).toHaveAttribute('aria-hidden', 'true');
+  await expect(back).toHaveAttribute('inert', '');
+  await expect(back).toContainText('Atrapando instantes');
+
+  await page.mouse.up();
+  await expect(page).toHaveURL(/\/sobre-mi\/$/);
+  await expect(rightPage).not.toHaveClass(/is-page-turning/, { timeout: 1000 });
+  await expect(preview).not.toHaveClass(/is-active/);
+});
+
+test('continuous turn mirrors real destination faces when navigating backward', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/portfolio/');
+
+  const previous = page
+    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
+    .getByRole('link', { name: 'Página anterior: Quién soy' });
+
+  await previous.hover();
+  const preview = page.locator('[data-turn-preview][data-turn-preview-direction="previous"]');
+  await expect(preview).toBeAttached();
+  await expect(preview.locator('[data-turn-preview-page="left"]')).toContainText('Quién soy');
+
+  const leftPage = page.locator('.album-page-left');
+  const pageWidth = (await leftPage.boundingBox())?.width ?? 1;
+  const box = await previous.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+
+  const startX = box.x + 10;
+  const startY = box.y + box.height - 10;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + pageWidth * 0.25, startY - 4, { steps: 6 });
+
+  const back = leftPage.locator(':scope > .album-turn-back');
+  await expect(back).toBeAttached();
+  await expect(back).toContainText('Ir al portfolio');
+  await expect(preview).toHaveClass(/is-active/);
+
+  await page.mouse.up();
+  await expect(page).toHaveURL(/\/portfolio\/$/);
+});
+
+test('confirmed continuous turn keeps the prepared destination scene until route handoff', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/portfolio/categoria-de-prueba/');
+
+  const next = page
+    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
+    .getByRole('link', { name: 'Página siguiente: Segunda categoría de prueba' });
+
+  await next.hover();
+  const preview = page.locator('[data-turn-preview][data-turn-preview-direction="next"]');
+  await expect(preview).toBeAttached();
+  await expect(preview).toContainText('Segunda categoría de prueba');
+
+  const rightPage = page.locator('.album-page-right');
+  const pageWidth = (await rightPage.boundingBox())?.width ?? 1;
+  const box = await next.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+
+  const startX = box.x + box.width - 10;
+  const startY = box.y + box.height - 10;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX - pageWidth * 0.5, startY - 4, { steps: 8 });
+  await page.mouse.up();
+
+  await expect(page.locator('[data-album-spread]')).toHaveAttribute('data-turn-committed', 'true');
+  await expect(preview).toHaveClass(/is-active/);
+  await expect(page).toHaveURL(/\/portfolio\/segunda-categoria-de-prueba\/$/, { timeout: 3000 });
+});
+
 test('physical page drag cancels below forty percent and confirms above it in both directions', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/sobre-mi/');
