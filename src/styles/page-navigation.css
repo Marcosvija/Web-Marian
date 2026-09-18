@@ -64,7 +64,7 @@
 
 @media (min-width: 64rem) {
   .page-navigation {
-    position: absolute;
+    position: fixed;
     inset: 0;
     z-index: 10;
     display: block;
@@ -93,13 +93,13 @@
   }
 
   .page-navigation-previous {
-    inset-inline-start: -0.75rem;
+    inset-inline-start: max(0.25rem, calc((100vw - 88rem) / 2 + 0.25rem));
     border-inline-start-width: 0.35rem;
     border-radius: 0 0.25rem 0.25rem 0;
   }
 
   .page-navigation-next {
-    inset-inline-end: -0.75rem;
+    inset-inline-end: max(0.25rem, calc((100vw - 88rem) / 2 + 0.25rem));
     flex-direction: row-reverse;
     border-inline-end-width: 0.35rem;
     border-radius: 0.25rem 0 0 0.25rem;
