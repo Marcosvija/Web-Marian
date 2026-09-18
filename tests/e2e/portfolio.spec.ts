@@ -752,6 +752,19 @@ test('curl destination surface keeps the stable route layout contract for BUG-9'
   await expect(previewWrapper).toHaveClass(/category-view/);
   await expect(previewSurface).toHaveClass(/album-page-left/);
 
+  const currentRight = current.locator('[data-album-spread] > .album-page-right');
+  const pageWidth = (await currentRight.boundingBox())?.width ?? 1;
+  const nextBox = await next.boundingBox();
+  expect(nextBox).not.toBeNull();
+  if (!nextBox) return;
+
+  const startX = nextBox.x + nextBox.width - 10;
+  const startY = nextBox.y + nextBox.height - 10;
+  await current.mouse.move(startX, startY);
+  await current.mouse.down();
+  await current.mouse.move(startX - pageWidth * 0.2, startY - 45, { steps: 6 });
+  await expect(current.locator('[data-album-spread]')).toHaveClass(/is-flex-turning/);
+
   const readLayoutContract = async (surface: import('@playwright/test').Locator) =>
     surface.evaluate((element) => {
       const heading = element.querySelector<HTMLElement>('.section-heading');
@@ -775,6 +788,8 @@ test('curl destination surface keeps the stable route layout contract for BUG-9'
         gridColumns: gridStyle?.gridTemplateColumns ?? null,
         gridRows: gridStyle?.gridTemplateRows ?? null,
         gridGap: gridStyle?.gap ?? null,
+        clientWidth: element.clientWidth,
+        clientHeight: element.clientHeight,
       };
     });
 
@@ -785,6 +800,8 @@ test('curl destination surface keeps the stable route layout contract for BUG-9'
   const stableContract = await readLayoutContract(stableSurface);
 
   expect(previewContract).toEqual(stableContract);
+  await current.mouse.up();
+  await expect(current).toHaveURL(/\/portfolio\/$/);
   await current.close();
   await stable.close();
 });
