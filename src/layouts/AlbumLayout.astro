@@ -12,6 +12,7 @@ interface Props {
 const { title, description } = Astro.props;
 const navigation = await getAlbumNavigation();
 const pageSequence = await getAlbumPageSequence();
+const isCover = Astro.url.pathname === '/';
 ---
 
 <BaseLayout title={title} description={description}>
@@ -26,7 +27,7 @@ const pageSequence = await getAlbumPageSequence();
     <BookmarkIndex items={navigation} currentPath={Astro.url.pathname} />
 
     <main id="contenido" class="album-frame" tabindex="-1">
-      <div class="album-stage">
+      <div class:list={['album-stage', { 'is-cover-stage': isCover }]}>
         <slot />
         <PageNavigation pages={pageSequence} currentPath={Astro.url.pathname} />
       </div>

@@ -182,6 +182,95 @@ test('desktop interior is a two-page spread with content distributed across both
   expect(await right.locator('.category-list a').count()).toBeGreaterThan(0);
 });
 
+test('desktop spreads keep one stable viewport-sized geometry across sections', async ({ page }) => {
+  const viewport = { width: 1440, height: 900 };
+  await page.setViewportSize(viewport);
+
+  const routes = [
+    '/sobre-mi/',
+    '/portfolio/',
+    '/portfolio/categoria-de-prueba/',
+    '/portfolio/segunda-categoria-de-prueba/',
+    '/contacto/',
+  ];
+
+  const expectedWidth = Math.min(viewport.width * 0.92, 96 * 16);
+  const expectedHeight = Math.min(Math.max(32 * 16, viewport.height * 0.82), 54 * 16);
+  let baseline: { width: number; height: number } | null = null;
+
+  for (const route of routes) {
+    await page.goto(route);
+
+    const spread = page.locator('[data-album-spread]');
+    const spreadBox = await spread.boundingBox();
+    expect(spreadBox, route).not.toBeNull();
+    if (!spreadBox) continue;
+
+    expect(Math.abs(spreadBox.width - expectedWidth), route).toBeLessThan(4);
+    expect(Math.abs(spreadBox.height - expectedHeight), route).toBeLessThan(4);
+    expect(Math.abs(spreadBox.x + spreadBox.width / 2 - viewport.width / 2), route).toBeLessThan(4);
+
+    if (!baseline) {
+      baseline = { width: spreadBox.width, height: spreadBox.height };
+    } else {
+      expect(Math.abs(spreadBox.width - baseline.width), route).toBeLessThan(2);
+      expect(Math.abs(spreadBox.height - baseline.height), route).toBeLessThan(2);
+    }
+
+    const pages = spread.locator('.album-page');
+    await expect(pages).toHaveCount(2);
+    const leftBox = await pages.nth(0).boundingBox();
+    const rightBox = await pages.nth(1).boundingBox();
+    expect(leftBox, route).not.toBeNull();
+    expect(rightBox, route).not.toBeNull();
+    expect(Math.abs((leftBox?.width ?? 0) - (rightBox?.width ?? 0)), route).toBeLessThan(2);
+    expect(Math.abs((leftBox?.height ?? 0) - spreadBox.height), route).toBeLessThan(2);
+    expect(Math.abs((rightBox?.height ?? 0) - spreadBox.height), route).toBeLessThan(2);
+
+    const overflow = await pages.evaluateAll((elements) =>
+      elements.map((element) => ({
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+      })),
+    );
+    for (const metrics of overflow) {
+      expect(metrics.scrollHeight, route).toBeLessThanOrEqual(metrics.clientHeight + 2);
+      expect(metrics.scrollWidth, route).toBeLessThanOrEqual(metrics.clientWidth + 2);
+    }
+  }
+
+  expect(baseline).not.toBeNull();
+  await page.goto('/');
+  const coverBox = await page.locator('.album-cover').boundingBox();
+  expect(coverBox).not.toBeNull();
+  expect(Math.abs((coverBox?.height ?? 0) - (baseline?.height ?? 0))).toBeLessThan(2);
+  expect(Math.abs((coverBox?.width ?? 0) - (baseline?.width ?? 0) / 2)).toBeLessThan(3);
+  expect(Math.abs((coverBox?.x ?? 0) + (coverBox?.width ?? 0) / 2 - viewport.width / 2)).toBeLessThan(4);
+});
+
+test('double spread reflows when useful width or height is insufficient', async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 600 },
+    { width: 900, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/portfolio/categoria-de-prueba/');
+
+    await expect(page.locator('.album-page').first()).toHaveCSS('display', 'contents');
+    await expect(
+      page.getByRole('navigation', { name: 'Recorrido entre páginas del álbum' }),
+    ).toHaveCSS('position', 'static');
+
+    const frameBox = await page.locator('.album-frame').boundingBox();
+    const spreadBox = await page.locator('[data-album-spread]').boundingBox();
+    expect(frameBox).not.toBeNull();
+    expect(spreadBox).not.toBeNull();
+    expect(spreadBox?.width ?? Infinity).toBeLessThanOrEqual((frameBox?.width ?? 0) + 2);
+  }
+});
+
 test('desktop physical corners stay attached to the lower edge of every interior spread', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
 

@@ -25,7 +25,7 @@ html {
 }
 
 body {
-  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   background:
     linear-gradient(90deg, transparent 49.9%, rgb(57 45 36 / 0.035) 50%, transparent 50.1%),
@@ -79,13 +79,13 @@ a {
 }
 
 .site-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: 1rem;
 }
 
 .site-header {
   display: flex;
-  width: min(100%, 88rem);
+  width: min(92vw, 96rem);
   min-height: 3rem;
   margin-inline: auto;
   align-items: center;
@@ -113,12 +113,13 @@ a {
 }
 
 .album-frame {
+  --album-spread-height: clamp(32rem, 82dvh, 54rem);
   container: album / inline-size;
-  width: min(100%, 88rem);
-  min-height: calc(100vh - 6rem);
-  margin-inline: auto;
   display: grid;
-  align-items: stretch;
+  width: min(92vw, 96rem);
+  min-height: calc(100dvh - 6rem);
+  margin-inline: auto;
+  place-items: center;
 }
 
 .sheet {
@@ -517,76 +518,77 @@ h1 {
   justify-self: center;
 }
 
-@container album (min-width: 56rem) {
-  .sheet {
-    position: relative;
-  }
-
-  .cover-view,
-  .about-view,
-  .contact-view {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .cover-copy,
-  .about-view > :first-child,
-  .contact-view > :first-child {
-    align-self: center;
-  }
-
-  .about-view .editorial-placeholder,
-  .contact-view .empty-state,
-  .contact-view .contact-list {
-    align-self: center;
-  }
-
-  .about-view .text-action,
-  .contact-view .text-action {
-    grid-column: 2;
-  }
-
-  .photo-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-  }
-
-  .photo-card.is-featured {
-    grid-row: span 2;
-  }
-
-  .photo-card:nth-child(4n + 4) {
-    grid-column: 1 / -1;
-    width: min(72%, 58rem);
-    justify-self: center;
-  }
-
-  .category-pagination {
-    grid-template-areas: "previous index next";
-    grid-template-columns: 1fr auto 1fr;
-    gap: 0.5rem;
-    padding-block-start: 0;
-  }
-
-  .category-pagination-index {
-    justify-content: center;
-    text-align: start;
-  }
-
-  .category-pagination-next,
-  .category-pagination-contact {
-    min-height: 3.5rem;
-    margin-block-start: 0;
-    padding: 0;
-    justify-content: end;
-    background: transparent;
-    color: inherit;
-    font-weight: inherit;
-    text-align: end;
-    text-decoration: underline;
-  }
-
-  .category-pagination-label {
-    display: none;
+@media (min-height: 38rem) {
+  @container album (min-width: 56rem) {
+    .sheet {
+      position: relative;
+    }
+  
+    .about-view,
+    .contact-view {
+      grid-template-columns: 1fr 1fr;
+    }
+  
+    .cover-copy,
+    .about-view > :first-child,
+    .contact-view > :first-child {
+      align-self: center;
+    }
+  
+    .about-view .editorial-placeholder,
+    .contact-view .empty-state,
+    .contact-view .contact-list {
+      align-self: center;
+    }
+  
+    .about-view .text-action,
+    .contact-view .text-action {
+      grid-column: 2;
+    }
+  
+    .photo-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
+  
+    .photo-card.is-featured {
+      grid-row: span 2;
+    }
+  
+    .photo-card:nth-child(4n + 4) {
+      grid-column: 1 / -1;
+      width: min(72%, 58rem);
+      justify-self: center;
+    }
+  
+    .category-pagination {
+      grid-template-areas: "previous index next";
+      grid-template-columns: 1fr auto 1fr;
+      gap: 0.5rem;
+      padding-block-start: 0;
+    }
+  
+    .category-pagination-index {
+      justify-content: center;
+      text-align: start;
+    }
+  
+    .category-pagination-next,
+    .category-pagination-contact {
+      min-height: 3.5rem;
+      margin-block-start: 0;
+      padding: 0;
+      justify-content: end;
+      background: transparent;
+      color: inherit;
+      font-weight: inherit;
+      text-align: end;
+      text-decoration: underline;
+    }
+  
+    .category-pagination-label {
+      display: none;
+    }
   }
 }
 
