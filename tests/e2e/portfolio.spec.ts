@@ -302,7 +302,7 @@ test('double spread reflows when useful width or height is insufficient', async 
     await page.setViewportSize(viewport);
     await page.goto('/portfolio/categoria-de-prueba/');
 
-    await expect(page.locator('.album-page').first()).toHaveCSS('display', 'contents');
+    await expect(page.locator('.album-page').first()).toHaveCSS('display', 'block');
     await expect(
       page.getByRole('navigation', { name: 'Recorrido entre páginas del álbum' }),
     ).toHaveCSS('position', 'static');
@@ -313,6 +313,52 @@ test('double spread reflows when useful width or height is insufficient', async 
     expect(spreadBox).not.toBeNull();
     expect(spreadBox?.width ?? Infinity).toBeLessThanOrEqual((frameBox?.width ?? 0) + 2);
   }
+});
+
+test('single-page reflow adds one small gap between former left and right page groups', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  for (const route of [
+    '/sobre-mi/',
+    '/portfolio/',
+    '/portfolio/categoria-de-prueba/',
+    '/contacto/',
+  ]) {
+    await page.goto(route);
+
+    const left = page.locator('.album-page-left');
+    const right = page.locator('.album-page-right');
+    await expect(left, route).toHaveCSS('display', 'block');
+    await expect(right, route).toHaveCSS('display', 'block');
+
+    const leftBox = await left.boundingBox();
+    const rightBox = await right.boundingBox();
+    expect(leftBox, route).not.toBeNull();
+    expect(rightBox, route).not.toBeNull();
+
+    const gap = (rightBox?.y ?? 0) - ((leftBox?.y ?? 0) + (leftBox?.height ?? 0));
+    expect(gap, route).toBeGreaterThanOrEqual(12);
+    expect(gap, route).toBeLessThanOrEqual(20);
+
+    await expect(right, route).toHaveCSS('border-top-width', '0px');
+    await expect(right, route).toHaveCSS('box-shadow', 'none');
+    await expect(right, route).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  }
+});
+
+test('double spread removes the mobile group gap', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/portfolio/categoria-de-prueba/');
+
+  const left = page.locator('.album-page-left');
+  const right = page.locator('.album-page-right');
+  const leftBox = await left.boundingBox();
+  const rightBox = await right.boundingBox();
+
+  expect(leftBox).not.toBeNull();
+  expect(rightBox).not.toBeNull();
+  expect(Math.abs((rightBox?.y ?? 0) - (leftBox?.y ?? 0))).toBeLessThan(2);
+  await expect(right).toHaveCSS('margin-top', '0px');
 });
 
 test('desktop physical corners stay attached to the lower edge of every interior spread', async ({ page }) => {
@@ -429,7 +475,7 @@ test('mobile page controls are visible after the section instead of relying on n
   const previousBox = await previous.boundingBox();
   const nextBox = await next.boundingBox();
 
-  await expect(page.locator('.album-page').first()).toHaveCSS('display', 'contents');
+  await expect(page.locator('.album-page').first()).toHaveCSS('display', 'block');
   await expect(previous).toBeVisible();
   await expect(next).toBeVisible();
   expect(sheetBox).not.toBeNull();
