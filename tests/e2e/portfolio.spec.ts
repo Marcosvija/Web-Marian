@@ -415,25 +415,23 @@ test('desktop physical corners stay attached to the lower edge of every interior
   }
 });
 
-test('continuous turn prepares real adjacent content as an inert visual scene', async ({ page }) => {
+test('flexible curl renderer uses real adjacent content and follows the corner in two dimensions', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/sobre-mi/');
   await expect(page.locator('html')).toHaveAttribute('data-page-navigation-ready', 'true');
 
-  const next = page
-    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
-    .getByRole('link', { name: 'Página siguiente: Índice' });
-
+  const navigation = page.getByRole('navigation', { name: 'Recorrido entre páginas del álbum' });
+  const next = navigation.getByRole('link', { name: 'Página siguiente: Índice' });
   await next.hover();
 
-  const preview = page.locator('[data-turn-preview][data-turn-preview-direction="next"]');
-  await expect(preview).toBeAttached();
-  await expect(preview).toHaveAttribute('aria-hidden', 'true');
-  await expect(preview).toHaveAttribute('inert', '');
-  await expect(preview.locator('[data-turn-preview-page="left"]')).toContainText('Atrapando instantes');
+  const renderer = page.locator('[data-curl-renderer="next"]');
+  await expect(renderer).toHaveAttribute('data-curl-ready', 'true');
+  await expect(renderer).toHaveAttribute('aria-hidden', 'true');
+  await expect(renderer).toHaveAttribute('inert', '');
+  await expect(renderer.locator('[data-curl-page="destination-left"]')).toContainText('Atrapando instantes');
 
-  const rightPage = page.locator('[data-album-spread] > .album-page-right');
-  const pageWidth = (await rightPage.boundingBox())?.width ?? 1;
+  const currentRight = page.locator('[data-album-spread] > .album-page-right');
+  const pageWidth = (await currentRight.boundingBox())?.width ?? 1;
   const box = await next.boundingBox();
   expect(box).not.toBeNull();
   if (!box) return;
@@ -442,22 +440,53 @@ test('continuous turn prepares real adjacent content as an inert visual scene', 
   const startY = box.y + box.height - 10;
   await page.mouse.move(startX, startY);
   await page.mouse.down();
-  await page.mouse.move(startX - pageWidth * 0.25, startY - 4, { steps: 6 });
+  await page.mouse.move(startX - pageWidth * 0.25, startY - 55, { steps: 8 });
 
-  await expect(preview).toHaveClass(/is-active/);
-  const back = rightPage.locator(':scope > .album-turn-back');
-  await expect(back).toBeAttached();
-  await expect(back).toHaveAttribute('aria-hidden', 'true');
-  await expect(back).toHaveAttribute('inert', '');
-  await expect(back).toContainText('Atrapando instantes');
+  await expect(page.locator('[data-album-spread]')).toHaveClass(/is-flex-turning/);
+  await expect(currentRight).toHaveCSS('visibility', 'hidden');
+
+  const movingPage = renderer.locator('.stf__item', { hasText: 'Atrapando instantes' }).first();
+  const firstStyle = await movingPage.getAttribute('style');
+  expect(firstStyle).toContain('clip-path');
+  expect(firstStyle).not.toContain('rotateY(');
+
+  await page.mouse.move(startX - pageWidth * 0.25, startY - 150, { steps: 6 });
+  const secondStyle = await movingPage.getAttribute('style');
+  expect(secondStyle).not.toEqual(firstStyle);
 
   await page.mouse.up();
   await expect(page).toHaveURL(/\/sobre-mi\/$/);
-  await expect(rightPage).not.toHaveClass(/is-page-turning/, { timeout: 1000 });
-  await expect(preview).not.toHaveClass(/is-active/);
+  await expect(page.locator('[data-curl-renderer="next"]')).toHaveCount(0, { timeout: 1500 });
+  await expect(currentRight).toHaveCSS('visibility', 'visible');
 });
 
-test('continuous turn mirrors real destination faces when navigating backward', async ({ page }) => {
+test('flexible curl preloads destination images at full decoded quality before revealing them', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/portfolio/');
+
+  const next = page
+    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
+    .getByRole('link', { name: 'Página siguiente: Categoría de prueba' });
+
+  await next.hover();
+  const renderer = page.locator('[data-curl-renderer="next"]');
+  await expect(renderer).toHaveAttribute('data-curl-ready', 'true');
+
+  const destinationImage = renderer.locator('[data-curl-page^="destination-"] img').first();
+  await expect(destinationImage).toBeAttached();
+  const imageState = await destinationImage.evaluate((image: HTMLImageElement) => ({
+    complete: image.complete,
+    naturalWidth: image.naturalWidth,
+    naturalHeight: image.naturalHeight,
+    loading: image.loading,
+  }));
+  expect(imageState.complete).toBe(true);
+  expect(imageState.naturalWidth).toBeGreaterThan(0);
+  expect(imageState.naturalHeight).toBeGreaterThan(0);
+  expect(imageState.loading).toBe('eager');
+});
+
+test('flexible curl mirrors the renderer for previous navigation and commits from the current deformation', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/portfolio/');
 
@@ -466,12 +495,12 @@ test('continuous turn mirrors real destination faces when navigating backward', 
     .getByRole('link', { name: 'Página anterior: Quién soy' });
 
   await previous.hover();
-  const preview = page.locator('[data-turn-preview][data-turn-preview-direction="previous"]');
-  await expect(preview).toBeAttached();
-  await expect(preview.locator('[data-turn-preview-page="left"]')).toContainText('Quién soy');
+  const renderer = page.locator('[data-curl-renderer="previous"]');
+  await expect(renderer).toHaveAttribute('data-curl-ready', 'true');
+  await expect(renderer.locator('[data-curl-page="destination-left"]')).toContainText('Quién soy');
 
-  const leftPage = page.locator('[data-album-spread] > .album-page-left');
-  const pageWidth = (await leftPage.boundingBox())?.width ?? 1;
+  const currentLeft = page.locator('[data-album-spread] > .album-page-left');
+  const pageWidth = (await currentLeft.boundingBox())?.width ?? 1;
   const box = await previous.boundingBox();
   expect(box).not.toBeNull();
   if (!box) return;
@@ -480,46 +509,10 @@ test('continuous turn mirrors real destination faces when navigating backward', 
   const startY = box.y + box.height - 10;
   await page.mouse.move(startX, startY);
   await page.mouse.down();
-  await page.mouse.move(startX + pageWidth * 0.25, startY - 4, { steps: 6 });
-
-  const back = leftPage.locator(':scope > .album-turn-back');
-  await expect(back).toBeAttached();
-  await expect(back).toContainText('Ir al portfolio');
-  await expect(preview).toHaveClass(/is-active/);
-
-  await page.mouse.up();
-  await expect(page).toHaveURL(/\/portfolio\/$/);
-});
-
-test('confirmed continuous turn keeps the prepared destination scene until route handoff', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto('/portfolio/categoria-de-prueba/');
-
-  const next = page
-    .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
-    .getByRole('link', { name: 'Página siguiente: Segunda categoría de prueba' });
-
-  await next.hover();
-  const preview = page.locator('[data-turn-preview][data-turn-preview-direction="next"]');
-  await expect(preview).toBeAttached();
-  await expect(preview).toContainText('Segunda categoría de prueba');
-
-  const rightPage = page.locator('[data-album-spread] > .album-page-right');
-  const pageWidth = (await rightPage.boundingBox())?.width ?? 1;
-  const box = await next.boundingBox();
-  expect(box).not.toBeNull();
-  if (!box) return;
-
-  const startX = box.x + box.width - 10;
-  const startY = box.y + box.height - 10;
-  await page.mouse.move(startX, startY);
-  await page.mouse.down();
-  await page.mouse.move(startX - pageWidth * 0.5, startY - 4, { steps: 8 });
+  await page.mouse.move(startX + pageWidth * 0.5, startY - 80, { steps: 10 });
   await page.mouse.up();
 
-  await expect(page.locator('[data-album-spread]')).toHaveAttribute('data-turn-committed', 'true');
-  await expect(preview).toHaveClass(/is-active/);
-  await expect(page).toHaveURL(/\/portfolio\/segunda-categoria-de-prueba\/$/, { timeout: 3000 });
+  await expect(page).toHaveURL(/\/sobre-mi\/$/, { timeout: 3000 });
 });
 
 test('physical page drag cancels below forty percent and confirms above it in both directions', async ({ page }) => {

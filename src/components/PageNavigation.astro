@@ -51,17 +51,24 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
 )}
 
 <script>
+  import { PageFlip } from 'page-flip';
+
   type TurnDirection = 'previous' | 'next';
 
-  interface PreparedScene {
-    preview: HTMLElement;
-    left: HTMLElement;
-    right: HTMLElement;
+  interface FlexibleRenderer {
+    flip: PageFlip;
+    host: HTMLElement;
+    link: HTMLAnchorElement;
+    direction: TurnDirection;
+    started: boolean;
+    settling: boolean;
+    lastPoint: { x: number; y: number } | null;
   }
 
   const focusKey = 'album-page-navigation-focus';
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const preparedScenes = new WeakMap<HTMLAnchorElement, Promise<PreparedScene | null>>();
+  const preparedRenderers =
+    new WeakMap<HTMLAnchorElement, Promise<FlexibleRenderer | null>>();
 
   const focusDestination = () => {
     const focusOrigin = sessionStorage.getItem(focusKey);
@@ -83,6 +90,7 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
   const getActivePage = (direction: TurnDirection) => {
     const spread = getSpread();
     if (!spread) return null;
+
     return spread.querySelector<HTMLElement>(
       direction === 'next'
         ? ':scope > .album-page-right'
@@ -92,6 +100,7 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
 
   const physicalTurnAvailable = () => {
     if (reducedMotion.matches) return false;
+
     const spread = getSpread();
     const page = spread?.querySelector<HTMLElement>(':scope > .album-page');
     if (!spread || !page) return false;
@@ -104,6 +113,9 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
   const sanitizeVisualClone = (element: HTMLElement) => {
     element.removeAttribute('id');
     element.querySelectorAll<HTMLElement>('[id]').forEach((node) => node.removeAttribute('id'));
+    element.querySelectorAll<HTMLElement>('a, button, input, select, textarea, [tabindex]').forEach(
+      (node) => node.setAttribute('tabindex', '-1'),
+    );
     element.querySelectorAll<HTMLImageElement>('img').forEach((image) => {
       image.loading = 'eager';
       image.decoding = 'async';
@@ -111,14 +123,47 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
     return element;
   };
 
-  const prepareDestination = (
+  const waitForVisualAssets = async (root: HTMLElement) => {
+    const images = Array.from(root.querySelectorAll<HTMLImageElement>('img'));
+    await Promise.allSettled(
+      images.map(async (image) => {
+        if (image.complete && image.naturalWidth > 0) return;
+        await image.decode();
+      }),
+    );
+
+    if ('fonts' in document) {
+      await document.fonts.ready;
+    }
+
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+  };
+
+  const clonePage = (source: HTMLElement, label: string) => {
+    const clone = sanitizeVisualClone(source.cloneNode(true) as HTMLElement);
+    clone.dataset.curlPage = label;
+    clone.setAttribute('aria-hidden', 'true');
+    clone.setAttribute('inert', '');
+    return clone;
+  };
+
+  const prepareFlexibleRenderer = (
     link: HTMLAnchorElement,
     direction: TurnDirection,
-  ): Promise<PreparedScene | null> => {
-    const cached = preparedScenes.get(link);
+  ): Promise<FlexibleRenderer | null> => {
+    const cached = preparedRenderers.get(link);
     if (cached) return cached;
 
     const task = (async () => {
+      if (!physicalTurnAvailable()) return null;
+
+      const spread = getSpread();
+      const currentLeft = spread?.querySelector<HTMLElement>(':scope > .album-page-left');
+      const currentRight = spread?.querySelector<HTMLElement>(':scope > .album-page-right');
+      if (!spread || !currentLeft || !currentRight) return null;
+
       try {
         const response = await fetch(link.href, {
           credentials: 'same-origin',
@@ -129,131 +174,224 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
         const html = await response.text();
         const parsed = new DOMParser().parseFromString(html, 'text/html');
         const destinationSpread = parsed.querySelector<HTMLElement>('[data-album-spread]');
-        const sourceLeft = destinationSpread?.querySelector<HTMLElement>('.album-page-left');
-        const sourceRight = destinationSpread?.querySelector<HTMLElement>('.album-page-right');
-        const spread = getSpread();
-        if (!destinationSpread || !sourceLeft || !sourceRight || !spread) return null;
+        const destinationLeft =
+          destinationSpread?.querySelector<HTMLElement>(':scope > .album-page-left');
+        const destinationRight =
+          destinationSpread?.querySelector<HTMLElement>(':scope > .album-page-right');
+        if (!destinationSpread || !destinationLeft || !destinationRight) return null;
 
-        const preview = document.createElement('div');
-        preview.className = 'album-turn-preview';
-        preview.dataset.turnPreview = '';
-        preview.dataset.turnPreviewDirection = direction;
-        preview.setAttribute('aria-hidden', 'true');
-        preview.setAttribute('inert', '');
+        const pageBox = currentLeft.getBoundingClientRect();
+        if (pageBox.width <= 0 || pageBox.height <= 0) return null;
 
-        const left = sanitizeVisualClone(sourceLeft.cloneNode(true) as HTMLElement);
-        const right = sanitizeVisualClone(sourceRight.cloneNode(true) as HTMLElement);
-        left.dataset.turnPreviewPage = 'left';
-        right.dataset.turnPreviewPage = 'right';
-        preview.append(left, right);
-        spread.prepend(preview);
+        const host = document.createElement('div');
+        host.className = 'album-curl-renderer';
+        host.dataset.curlRenderer = direction;
+        host.setAttribute('aria-hidden', 'true');
+        host.setAttribute('inert', '');
 
-        return { preview, left, right };
+        const currentPages = [
+          clonePage(currentLeft, 'current-left'),
+          clonePage(currentRight, 'current-right'),
+        ];
+        const destinationPages = [
+          clonePage(destinationLeft, 'destination-left'),
+          clonePage(destinationRight, 'destination-right'),
+        ];
+        const pages =
+          direction === 'next'
+            ? [...currentPages, ...destinationPages]
+            : [...destinationPages, ...currentPages];
+
+        host.append(...pages);
+        spread.prepend(host);
+
+        const flip = new PageFlip(host, {
+          width: Math.round(pageBox.width),
+          height: Math.round(pageBox.height),
+          size: 'fixed',
+          startPage: direction === 'next' ? 0 : 2,
+          drawShadow: true,
+          flippingTime: 360,
+          usePortrait: false,
+          startZIndex: 20,
+          autoSize: false,
+          maxShadowOpacity: 0.42,
+          showCover: false,
+          mobileScrollSupport: true,
+          clickEventForward: false,
+          useMouseEvents: false,
+          showPageCorners: false,
+          disableFlipByClick: true,
+        });
+
+        flip.loadFromHTML(pages);
+        await waitForVisualAssets(host);
+
+        const renderer: FlexibleRenderer = {
+          flip,
+          host,
+          link,
+          direction,
+          started: false,
+          settling: false,
+          lastPoint: null,
+        };
+        host.dataset.curlReady = 'true';
+        return renderer;
       } catch {
+        preparedRenderers.delete(link);
         return null;
       }
     })();
 
-    preparedScenes.set(link, task);
+    preparedRenderers.set(link, task);
     return task;
   };
 
-  const createTurnFace = (
-    side: 'left' | 'right',
-    className: 'album-turn-front' | 'album-turn-back',
+  const rendererPoint = (
+    renderer: FlexibleRenderer,
+    clientX: number,
+    clientY: number,
   ) => {
-    const face = document.createElement('div');
-    face.className = `album-turn-face ${className} album-turn-face-${side}`;
-    return face;
+    const dist = renderer.flip.getUI().getDistElement();
+    const rect = dist.getBoundingClientRect();
+
+    return {
+      x: Math.max(1, Math.min(clientX - rect.left, rect.width - 1)),
+      y: Math.max(1, Math.min(clientY - rect.top, rect.height - 1)),
+    };
   };
 
-  const mountTurningFaces = (
-    page: HTMLElement,
-    direction: TurnDirection,
-    scene: PreparedScene,
+  const beginFlexibleTurn = (
+    renderer: FlexibleRenderer,
+    startClientX: number,
+    startClientY: number,
+    currentClientX: number,
+    currentClientY: number,
   ) => {
-    if (page.querySelector(':scope > .album-turn-front')) return;
+    if (renderer.started || renderer.settling) return;
 
-    const sourceSide = direction === 'next' ? 'right' : 'left';
-    const destinationSide = direction === 'next' ? 'left' : 'right';
-    const destinationPage = direction === 'next' ? scene.left : scene.right;
-    const front = createTurnFace(sourceSide, 'album-turn-front');
-    const back = createTurnFace(destinationSide, 'album-turn-back');
-
-    while (page.firstChild) front.append(page.firstChild);
-    Array.from(destinationPage.childNodes).forEach((node) => {
-      back.append(node.cloneNode(true));
-    });
-    sanitizeVisualClone(back);
-
-    back.setAttribute('aria-hidden', 'true');
-    back.setAttribute('inert', '');
-    page.append(front, back);
-  };
-
-  const restoreTurningPage = (page: HTMLElement) => {
-    const front = page.querySelector<HTMLElement>(':scope > .album-turn-front');
-    if (front) {
-      const nodes = Array.from(front.childNodes);
-      nodes.forEach((node) => page.insertBefore(node, front));
-    }
-    page.querySelector(':scope > .album-turn-front')?.remove();
-    page.querySelector(':scope > .album-turn-back')?.remove();
-    page.classList.remove('is-page-turning');
-    page.style.removeProperty('transition');
-    page.style.removeProperty('transform');
-    delete page.dataset.turnProgress;
-  };
-
-  const deactivateScene = (scene: PreparedScene | null) => {
-    scene?.preview.classList.remove('is-active');
-  };
-
-  const applyTurn = (
-    link: HTMLAnchorElement,
-    direction: TurnDirection,
-    progress: number,
-    scene: PreparedScene,
-  ) => {
     const spread = getSpread();
-    const page = getActivePage(direction);
-    if (!spread || !page) return;
+    if (!spread) return;
 
-    const clamped = Math.max(0, Math.min(progress, 1));
-    const angle = clamped * 180 * (direction === 'next' ? -1 : 1);
+    spread.classList.add('is-flex-turning');
+    spread.dataset.turnDirection = renderer.direction;
+    renderer.host.dataset.curlActive = 'true';
 
-    mountTurningFaces(page, direction, scene);
-    scene.preview.classList.add('is-active');
-    spread.dataset.turnDirection = direction;
-    spread.dataset.turnLabel = link.dataset.pageDestination ?? '';
-    spread.style.setProperty('--turn-progress', String(clamped));
-    page.dataset.turnProgress = String(clamped);
-    page.classList.add('is-page-turning');
-    page.style.transition = 'none';
-    page.style.transform = `rotateY(${angle}deg)`;
+    const start = rendererPoint(renderer, startClientX, startClientY);
+    const current = rendererPoint(renderer, currentClientX, currentClientY);
+    renderer.flip.startUserTouch(start);
+    renderer.flip.userMove(current, false);
+    renderer.lastPoint = current;
+    renderer.started = true;
+    document.documentElement.dataset.albumCurlActive = renderer.direction;
   };
 
-  const clearTurn = (
-    direction: TurnDirection,
-    scene: PreparedScene | null,
-    progress: number,
+  const moveFlexibleTurn = (
+    renderer: FlexibleRenderer,
+    clientX: number,
+    clientY: number,
   ) => {
+    if (!renderer.started || renderer.settling) return;
+
+    const point = rendererPoint(renderer, clientX, clientY);
+    renderer.flip.userMove(point, false);
+    renderer.lastPoint = point;
+    renderer.host.style.setProperty('--curl-pointer-x', String(point.x));
+    renderer.host.style.setProperty('--curl-pointer-y', String(point.y));
+  };
+
+  const destroyRenderer = (renderer: FlexibleRenderer) => {
     const spread = getSpread();
-    const page = getActivePage(direction);
-    if (!spread || !page) return;
-
-    const duration = Math.round(160 + Math.max(0, Math.min(progress, 1)) * 120);
-    page.style.transition = `transform ${duration}ms cubic-bezier(0.22, 0.61, 0.36, 1)`;
-    page.style.transform = 'rotateY(0deg)';
-    spread.style.setProperty('--turn-progress', '0');
-
-    window.setTimeout(() => {
-      restoreTurningPage(page);
-      deactivateScene(scene);
-      spread.style.removeProperty('--turn-progress');
+    spread?.classList.remove('is-flex-turning');
+    if (spread) {
       delete spread.dataset.turnDirection;
-      delete spread.dataset.turnLabel;
-    }, duration + 20);
+      delete spread.dataset.turnCommitted;
+    }
+
+    delete document.documentElement.dataset.albumCurlActive;
+    preparedRenderers.delete(renderer.link);
+
+    try {
+      renderer.flip.destroy();
+    } catch {
+      renderer.host.remove();
+    }
+  };
+
+  const animateRendererTo = async (
+    renderer: FlexibleRenderer,
+    target: { x: number; y: number },
+    duration: number,
+  ) => {
+    const start = renderer.lastPoint ?? target;
+    const startedAt = performance.now();
+
+    await new Promise<void>((resolve) => {
+      const frame = (now: number) => {
+        const elapsed = Math.min(1, (now - startedAt) / Math.max(duration, 1));
+        const eased = 1 - Math.pow(1 - elapsed, 3);
+        const point = {
+          x: start.x + (target.x - start.x) * eased,
+          y: start.y + (target.y - start.y) * eased,
+        };
+
+        renderer.flip.userMove(point, false);
+        renderer.lastPoint = point;
+        renderer.host.style.setProperty('--curl-pointer-x', String(point.x));
+        renderer.host.style.setProperty('--curl-pointer-y', String(point.y));
+
+        if (elapsed < 1) {
+          requestAnimationFrame(frame);
+        } else {
+          resolve();
+        }
+      };
+
+      requestAnimationFrame(frame);
+    });
+  };
+
+  const settleFlexibleTurn = async (
+    renderer: FlexibleRenderer,
+    progress: number,
+    commit: boolean,
+  ) => {
+    if (!renderer.started || renderer.settling) return;
+    renderer.settling = true;
+
+    const dist = renderer.flip.getUI().getDistElement();
+    const rect = dist.getBoundingClientRect();
+    const clamped = Math.max(0, Math.min(progress, 1));
+    const target = commit
+      ? {
+          x: renderer.direction === 'next' ? 1 : rect.width - 1,
+          y: rect.height - 1,
+        }
+      : {
+          x: renderer.direction === 'next' ? rect.width - 1 : 1,
+          y: rect.height - 1,
+        };
+    const duration = commit
+      ? Math.round(180 + (1 - clamped) * 240)
+      : Math.round(160 + clamped * 120);
+
+    await animateRendererTo(renderer, target, duration);
+
+    if (!commit) {
+      destroyRenderer(renderer);
+      return;
+    }
+
+    const spread = getSpread();
+    spread?.setAttribute('data-turn-committed', 'true');
+    renderer.host.dataset.curlSettled = 'true';
+    renderer.flip.turnToPage(renderer.direction === 'next' ? 2 : 0);
+    sessionStorage.setItem(focusKey, 'pointer');
+    document.documentElement.dataset.albumTurnNavigation = 'committed';
+
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    window.location.assign(renderer.link.href);
   };
 
   const navigateDirect = (
@@ -264,40 +402,9 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
     window.location.assign(link.href);
   };
 
-  const completeTurn = (
-    link: HTMLAnchorElement,
-    direction: TurnDirection,
-    scene: PreparedScene | null,
-    progress: number,
-  ) => {
-    const spread = getSpread();
-    const page = getActivePage(direction);
-    if (!spread || !page || !scene) {
-      navigateDirect(link, 'pointer');
-      return;
-    }
-
-    const clamped = Math.max(0, Math.min(progress, 1));
-    const remaining = 1 - clamped;
-    const duration = Math.round(180 + remaining * 240);
-    const angle = direction === 'next' ? -180 : 180;
-
-    scene.preview.classList.add('is-active');
-    page.style.transition = `transform ${duration}ms cubic-bezier(0.32, 0.72, 0, 1)`;
-    page.style.transform = `rotateY(${angle}deg)`;
-    page.dataset.turnProgress = '1';
-    spread.style.setProperty('--turn-progress', '1');
-    spread.dataset.turnCommitted = 'true';
-    sessionStorage.setItem(focusKey, 'pointer');
-
-    window.setTimeout(() => {
-      document.documentElement.dataset.albumTurnNavigation = 'committed';
-      window.location.assign(link.href);
-    }, duration);
-  };
-
   const enableFrameHandoff = () => {
     if (reducedMotion.matches) return;
+
     const style = document.createElement('style');
     style.dataset.albumFrameHandoff = '';
     style.textContent = `
@@ -320,28 +427,26 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
       link.dataset.pageDirection === 'previous' ? 'previous' : 'next';
     let pointerId: number | null = null;
     let startX = 0;
+    let startY = 0;
     let lastX = 0;
+    let lastY = 0;
     let dragging = false;
     let suppressClick = false;
-    let activeScene: PreparedScene | null = null;
+    let activeRenderer: FlexibleRenderer | null = null;
 
-    const warmDestination = () => {
+    const warmRenderer = () => {
       if (!physicalTurnAvailable()) return;
-      void prepareDestination(link, direction).then((scene) => {
-        activeScene = scene;
-        if (pointerId === null || !dragging || !scene) return;
 
-        const rawDistance = lastX - startX;
-        const distance = direction === 'next' ? -rawDistance : rawDistance;
-        const page = getActivePage(direction);
-        const pageWidth = page?.getBoundingClientRect().width ?? 1;
-        applyTurn(link, direction, Math.max(0, distance) / pageWidth, scene);
+      void prepareFlexibleRenderer(link, direction).then((renderer) => {
+        activeRenderer = renderer;
+        if (!renderer || pointerId === null || !dragging) return;
+        beginFlexibleTurn(renderer, startX, startY, lastX, lastY);
       });
     };
 
     link.draggable = false;
-    link.addEventListener('pointerenter', warmDestination, { once: true });
-    link.addEventListener('focus', warmDestination, { once: true });
+    link.addEventListener('pointerenter', warmRenderer, { once: true });
+    link.addEventListener('focus', warmRenderer, { once: true });
 
     link.addEventListener('click', (event) => {
       if (suppressClick) {
@@ -349,6 +454,7 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
         suppressClick = false;
         return;
       }
+
       sessionStorage.setItem(focusKey, event.detail === 0 ? 'keyboard' : 'pointer');
     });
 
@@ -360,29 +466,34 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
 
     link.addEventListener('pointerdown', (event) => {
       if (!physicalTurnAvailable() || !event.isPrimary || event.button !== 0) return;
+
       pointerId = event.pointerId;
       startX = event.clientX;
+      startY = event.clientY;
       lastX = event.clientX;
+      lastY = event.clientY;
       dragging = false;
       suppressClick = false;
-      warmDestination();
+      warmRenderer();
     });
 
     document.addEventListener('pointermove', (event) => {
       if (pointerId !== event.pointerId) return;
-      lastX = event.clientX;
 
+      lastX = event.clientX;
+      lastY = event.clientY;
       const rawDistance = event.clientX - startX;
-      const distance = direction === 'next' ? -rawDistance : rawDistance;
       if (!dragging && Math.abs(rawDistance) < 8) return;
 
       dragging = true;
       event.preventDefault();
-      if (!activeScene) return;
 
-      const page = getActivePage(direction);
-      const pageWidth = page?.getBoundingClientRect().width ?? 1;
-      applyTurn(link, direction, Math.max(0, distance) / pageWidth, activeScene);
+      if (!activeRenderer) return;
+      if (!activeRenderer.started) {
+        beginFlexibleTurn(activeRenderer, startX, startY, lastX, lastY);
+      } else {
+        moveFlexibleTurn(activeRenderer, lastX, lastY);
+      }
     });
 
     document.addEventListener('pointerup', (event) => {
@@ -401,20 +512,28 @@ const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[curren
       dragging = false;
       event.preventDefault();
 
-      if (progress >= 0.4) {
-        completeTurn(link, direction, activeScene, progress);
-      } else if (activeScene) {
-        clearTurn(direction, activeScene, progress);
+      if (!activeRenderer?.started) {
+        if (progress >= 0.4) navigateDirect(link, 'pointer');
+        return;
       }
+
+      void settleFlexibleTurn(activeRenderer, progress, progress >= 0.4);
     });
 
     document.addEventListener('pointercancel', (event) => {
       if (pointerId !== event.pointerId) return;
+
       pointerId = null;
-      if (dragging) {
-        suppressClick = true;
-        dragging = false;
-        clearTurn(direction, activeScene, Number(getActivePage(direction)?.dataset.turnProgress ?? 0));
+      if (!dragging) return;
+
+      suppressClick = true;
+      dragging = false;
+      if (activeRenderer?.started) {
+        const page = getActivePage(direction);
+        const pageWidth = page?.getBoundingClientRect().width ?? 1;
+        const distance = direction === 'next' ? startX - lastX : lastX - startX;
+        const progress = Math.max(0, Math.min(distance / pageWidth, 1));
+        void settleFlexibleTurn(activeRenderer, progress, false);
       }
     });
   });

@@ -79,25 +79,58 @@
       isolation: isolate;
     }
 
-    .album-turn-preview {
-      position: absolute;
+    .album-curl-renderer.stf__parent {
+      position: absolute !important;
       inset: 0;
-      z-index: 0;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr);
+      z-index: 8;
+      width: 100% !important;
+      min-width: 0 !important;
+      height: 100%;
+      min-height: 0 !important;
+      overflow: visible;
       opacity: 0;
+      visibility: hidden;
       pointer-events: none;
+      touch-action: none;
+      contain: layout paint;
     }
 
-    .album-turn-preview.is-active {
+    .album-spread.is-flex-turning > .album-curl-renderer {
       opacity: 1;
+      visibility: visible;
     }
 
-    .album-turn-preview > .album-page {
-      z-index: 0;
-      pointer-events: none;
-      user-select: none;
+    .album-spread.is-flex-turning > .album-page {
+      visibility: hidden;
+    }
+
+    .album-curl-renderer .stf__wrapper,
+    .album-curl-renderer .stf__block {
+      width: 100% !important;
+      height: 100% !important;
+      min-width: 0;
+      min-height: 0;
+      overflow: visible;
+    }
+
+    .album-curl-renderer .stf__block {
+      perspective: 2200px;
+    }
+
+    .album-curl-renderer .album-page {
+      margin: 0;
+      transform-style: flat;
+      backface-visibility: visible;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+    }
+
+    .album-curl-renderer .album-page::after {
+      display: none;
+    }
+
+    .album-curl-renderer img {
+      image-rendering: auto;
     }
 
     .album-page {
@@ -115,9 +148,6 @@
         linear-gradient(100deg, rgb(255 255 255 / 0.28), transparent 18%),
         var(--paper-raised);
       border: 1px solid rgb(71 60 51 / 0.2);
-      transform-style: preserve-3d;
-      backface-visibility: hidden;
-      will-change: transform;
     }
 
     .album-page h1 {
@@ -130,58 +160,6 @@
       inset-block: 0;
       width: clamp(1.2rem, 3cqi, 2.8rem);
       pointer-events: none;
-    }
-
-    .album-page::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        linear-gradient(90deg, rgb(88 56 47 / 0.09), transparent 26%),
-        var(--paper-raised);
-      transform: rotateY(180deg);
-      backface-visibility: hidden;
-      pointer-events: none;
-    }
-
-    .album-turn-face {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      min-width: 0;
-      min-height: 0;
-      padding: clamp(1.75rem, 3.25cqi, 3.5rem);
-      padding-block-end: clamp(5rem, 6cqi, 6rem);
-      flex-direction: column;
-      overflow: hidden;
-      border: 1px solid rgb(71 60 51 / 0.2);
-      background:
-        linear-gradient(100deg, rgb(255 255 255 / 0.28), transparent 18%),
-        var(--paper-raised);
-      backface-visibility: hidden;
-      pointer-events: none;
-    }
-
-    .album-turn-front {
-      transform: rotateY(0deg);
-    }
-
-    .album-turn-back {
-      transform: rotateY(180deg);
-    }
-
-    .album-turn-face-left {
-      border-radius: 0.35rem 0 0 0.35rem;
-      box-shadow:
-        inset -1.8rem 0 2.4rem -2.1rem rgb(42 34 28 / 0.34),
-        inset 0.35rem 0 0.9rem -0.55rem rgb(255 255 255 / 0.9);
-    }
-
-    .album-turn-face-right {
-      border-radius: 0 0.35rem 0.35rem 0;
-      box-shadow:
-        inset 1.8rem 0 2.4rem -2.1rem rgb(42 34 28 / 0.34),
-        inset -0.35rem 0 0.9rem -0.55rem rgb(255 255 255 / 0.9);
     }
 
     .album-page-left {
@@ -208,21 +186,6 @@
     .album-page-right::before {
       inset-inline: 0 auto;
       background: linear-gradient(90deg, rgb(42 34 28 / 0.16), transparent);
-    }
-
-    .album-page.is-page-turning {
-      z-index: 4;
-      padding: 0;
-      border-color: transparent;
-      background: transparent;
-      box-shadow: none;
-      backface-visibility: visible;
-      user-select: none;
-    }
-
-    .album-page.is-page-turning::before,
-    .album-page.is-page-turning::after {
-      display: none;
     }
 
     .about-view .album-page-right,
@@ -294,9 +257,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .album-turn-preview,
   .album-page,
-  .album-turn-face {
+  .album-curl-renderer {
     transition: none !important;
   }
 }
