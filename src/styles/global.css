@@ -530,7 +530,7 @@ h1 {
     .bookmark-index summary {
       position: absolute;
       inset-block-start: 0;
-      inset-inline-end: calc(-1 * var(--bookmark-exposed));
+      inset-inline-end: calc(0px - var(--bookmark-exposed));
       z-index: 1;
       display: grid;
       width: 2.35rem;
@@ -560,7 +560,7 @@ h1 {
     }
 
     .album-object.is-back-cover-object .bookmark-index summary {
-      inset-inline: calc(-1 * var(--bookmark-exposed)) auto;
+      inset-inline: calc(0px - var(--bookmark-exposed)) auto;
       border-radius: 0.18rem 0.12rem 0.12rem 0.18rem;
       box-shadow:
         -0.2rem 0.18rem 0.42rem rgb(42 34 28 / 0.2),
@@ -576,7 +576,7 @@ h1 {
 
     .album-object.is-back-cover-object .bookmark-index summary:hover,
     .album-object.is-back-cover-object .bookmark-index summary:focus-visible {
-      translate: calc(-1 * var(--bookmark-hover-pull)) 0;
+      translate: calc(0px - var(--bookmark-hover-pull)) 0;
     }
 
     .bookmark-index[open] summary {
@@ -584,7 +584,7 @@ h1 {
     }
 
     .album-object.is-back-cover-object .bookmark-index[open] summary {
-      translate: calc(-1 * var(--bookmark-open-pull)) 0;
+      translate: calc(0px - var(--bookmark-open-pull)) 0;
     }
 
     .bookmark-index summary:focus-visible {

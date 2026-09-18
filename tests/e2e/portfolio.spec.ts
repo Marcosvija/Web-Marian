@@ -125,7 +125,7 @@ test('reduced motion removes the page entrance animation', async ({ page }) => {
   expect(animationName).toBe('none');
 });
 
-test('the bookmark is physically inserted and includes both covers in canonical order', async ({ page }) => {
+test('the bookmark is physically inserted laterally and includes both covers in canonical order', async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
 
   for (const route of ['/', '/portfolio/categoria-de-prueba/', '/contraportada/']) {
@@ -136,17 +136,28 @@ test('the bookmark is physically inserted and includes both covers in canonical 
     const tab = index.locator('summary');
     const objectBox = await object.boundingBox();
     const restingBox = await tab.boundingBox();
+    const side = route === '/contraportada/' ? 'left' : 'right';
 
     expect(objectBox, route).not.toBeNull();
     expect(restingBox, route).not.toBeNull();
+    await expect(index).toHaveAttribute('data-bookmark-side', side);
     await expect(tab).toHaveCSS('writing-mode', 'vertical-rl');
     await expect(tab).toHaveCSS('border-top-width', '0px');
 
-    expect((restingBox?.y ?? Infinity), route).toBeLessThan((objectBox?.y ?? 0));
-    expect(
-      (restingBox?.y ?? 0) + (restingBox?.height ?? 0),
-      route,
-    ).toBeGreaterThan((objectBox?.y ?? Infinity));
+    if (objectBox && restingBox) {
+      const objectRight = objectBox.x + objectBox.width;
+      const tabRight = restingBox.x + restingBox.width;
+      expect(restingBox.y, route).toBeGreaterThan(objectBox.y);
+      expect(restingBox.y + restingBox.height, route).toBeLessThan(objectBox.y + objectBox.height);
+
+      if (side === 'right') {
+        expect(restingBox.x, route).toBeLessThan(objectRight);
+        expect(tabRight, route).toBeGreaterThan(objectRight);
+      } else {
+        expect(restingBox.x, route).toBeLessThan(objectBox.x);
+        expect(tabRight, route).toBeGreaterThan(objectBox.x);
+      }
+    }
 
     const slotContent = await index.evaluate((element) =>
       getComputedStyle(element, '::before').content,
@@ -160,12 +171,20 @@ test('the bookmark is physically inserted and includes both covers in canonical 
     await tab.hover();
     await page.waitForTimeout(180);
     const hoverBox = await tab.boundingBox();
-    expect((hoverBox?.y ?? 0), route).toBeLessThan((restingBox?.y ?? 0) - 3);
+    if (side === 'right') {
+      expect((hoverBox?.x ?? 0), route).toBeGreaterThan((restingBox?.x ?? 0) + 3);
+    } else {
+      expect((hoverBox?.x ?? 0), route).toBeLessThan((restingBox?.x ?? 0) - 3);
+    }
 
     await tab.click();
     await page.waitForTimeout(180);
     const openBox = await tab.boundingBox();
-    expect((openBox?.y ?? 0), route).toBeLessThan((restingBox?.y ?? 0) - 12);
+    if (side === 'right') {
+      expect((openBox?.x ?? 0), route).toBeGreaterThan((restingBox?.x ?? 0) + 10);
+    } else {
+      expect((openBox?.x ?? 0), route).toBeLessThan((restingBox?.x ?? 0) - 10);
+    }
 
     const panel = page.getByRole('navigation', { name: 'Índice del álbum' });
     const links = panel.getByRole('link');
