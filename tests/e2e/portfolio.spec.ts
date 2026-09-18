@@ -158,10 +158,12 @@ test('the bookmark is physically inserted and includes both covers in canonical 
     expect(occlusionContent, route).not.toBe('none');
 
     await tab.hover();
+    await page.waitForTimeout(180);
     const hoverBox = await tab.boundingBox();
     expect((hoverBox?.y ?? 0), route).toBeLessThan((restingBox?.y ?? 0) - 3);
 
     await tab.click();
+    await page.waitForTimeout(180);
     const openBox = await tab.boundingBox();
     expect((openBox?.y ?? 0), route).toBeLessThan((restingBox?.y ?? 0) - 12);
 

@@ -551,6 +551,7 @@ h1 {
     .bookmark-panel {
       inset: 0.72rem -0.55rem auto auto;
       z-index: 4;
+      pointer-events: auto;
       width: min(24rem, 52cqi);
       max-height: min(34rem, calc(100vh - 8rem));
       overflow: auto;
