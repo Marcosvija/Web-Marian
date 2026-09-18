@@ -11,15 +11,17 @@ test('the album routes, sequential page controls and recoverable index work with
   await expect(page).toHaveURL(/\/sobre-mi\/$/);
 
   const pageNavigation = page.getByRole('navigation', { name: 'Recorrido entre páginas del álbum' });
-  await expect(pageNavigation.getByRole('link', { name: 'Página anterior: Portada' })).toBeVisible();
+  await expect(pageNavigation.getByRole('link', { name: 'Cerrar álbum' })).toHaveAttribute('href', '/');
   await pageNavigation.getByRole('link', { name: 'Página siguiente: Índice' }).click();
   await expect(page).toHaveURL(/\/portfolio\/$/);
 
   await page.locator('.bookmark-index summary').click();
   const albumIndex = page.getByRole('navigation', { name: 'Índice del álbum' });
   await expect(albumIndex.getByRole('link', { name: 'Portfolio', exact: true })).toHaveCount(0);
+  await expect(albumIndex.getByRole('link', { name: 'Portada' })).toBeVisible();
   await expect(albumIndex.getByRole('link', { name: 'Quién soy' })).toBeVisible();
   await expect(albumIndex.getByRole('link', { name: 'Contacto' })).toBeVisible();
+  await expect(albumIndex.getByRole('link', { name: 'Contraportada' })).toBeVisible();
   await albumIndex.getByRole('link', { name: 'Categoría de prueba', exact: true }).click();
   await expect(page).toHaveURL(/\/portfolio\/categoria-de-prueba\/$/);
 
@@ -123,32 +125,82 @@ test('reduced motion removes the page entrance animation', async ({ page }) => {
   expect(animationName).toBe('none');
 });
 
-test('the bookmark reads as a ribbon inserted in the top edge of the album object', async ({ page }) => {
+test('the bookmark is physically inserted and includes both covers in canonical order', async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
 
   for (const route of ['/', '/portfolio/categoria-de-prueba/', '/contraportada/']) {
     await page.goto(route);
 
     const object = page.locator('[data-album-object]');
-    const tab = page.locator('.bookmark-index summary');
+    const index = page.locator('[data-bookmark-index]');
+    const tab = index.locator('summary');
     const objectBox = await object.boundingBox();
-    const tabBox = await tab.boundingBox();
+    const restingBox = await tab.boundingBox();
 
     expect(objectBox, route).not.toBeNull();
-    expect(tabBox, route).not.toBeNull();
+    expect(restingBox, route).not.toBeNull();
     await expect(tab).toHaveCSS('writing-mode', 'vertical-rl');
+    await expect(tab).toHaveCSS('border-top-width', '0px');
 
-    expect((tabBox?.y ?? Infinity), route).toBeLessThan((objectBox?.y ?? 0) + 4);
-    const tabCenter = (tabBox?.x ?? 0) + (tabBox?.width ?? 0) / 2;
-    expect(tabCenter, route).toBeGreaterThan((objectBox?.x ?? 0) + (objectBox?.width ?? 0) * 0.6);
-    expect(tabCenter, route).toBeLessThan((objectBox?.x ?? 0) + (objectBox?.width ?? 0) * 0.95);
+    expect((restingBox?.y ?? Infinity), route).toBeLessThan((objectBox?.y ?? 0));
+    expect(
+      (restingBox?.y ?? 0) + (restingBox?.height ?? 0),
+      route,
+    ).toBeGreaterThan((objectBox?.y ?? Infinity));
+
+    const slotContent = await index.evaluate((element) =>
+      getComputedStyle(element, '::before').content,
+    );
+    const occlusionContent = await index.evaluate((element) =>
+      getComputedStyle(element, '::after').content,
+    );
+    expect(slotContent, route).not.toBe('none');
+    expect(occlusionContent, route).not.toBe('none');
+
+    await tab.hover();
+    const hoverBox = await tab.boundingBox();
+    expect((hoverBox?.y ?? 0), route).toBeLessThan((restingBox?.y ?? 0) - 3);
 
     await tab.click();
+    const openBox = await tab.boundingBox();
+    expect((openBox?.y ?? 0), route).toBeLessThan((restingBox?.y ?? 0) - 12);
+
     const panel = page.getByRole('navigation', { name: 'Índice del álbum' });
+    const links = panel.getByRole('link');
+    await expect(links.first()).toHaveText(/Portada/);
+    await expect(links.last()).toHaveText(/Contraportada/);
     await expect(panel.getByRole('link', { name: 'Quién soy' })).toBeVisible();
     await expect(panel.getByRole('link', { name: 'Contacto' })).toBeVisible();
-    await expect(panel.getByRole('link', { name: 'Contraportada' })).toHaveCount(0);
+
+    await expect(panel.locator('[data-bookmark-kind="cover"]')).not.toHaveClass(/is-category/);
+    await expect(panel.locator('[data-bookmark-kind="back-cover"]')).not.toHaveClass(/is-category/);
+
+    if (route === '/') {
+      await expect(panel.getByRole('link', { name: 'Portada' })).toHaveAttribute('aria-current', 'page');
+    }
+    if (route === '/contraportada/') {
+      await expect(panel.getByRole('link', { name: 'Contraportada' })).toHaveAttribute('aria-current', 'page');
+    }
   }
+});
+
+test('mobile index keeps Portada and Contraportada with a labelled 44px control', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium', 'Mobile bookmark regression runs on mobile Chromium.');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/sobre-mi/');
+
+  const tab = page.locator('[data-bookmark-index] summary');
+  const box = await tab.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  await expect(tab).toContainText('Índice');
+
+  await tab.click();
+  const panel = page.getByRole('navigation', { name: 'Índice del álbum' });
+  const links = panel.getByRole('link');
+  await expect(links.first()).toHaveText(/Portada/);
+  await expect(links.last()).toHaveText(/Contraportada/);
 });
 
 test('touch navigation keeps semantic focus without drawing a frame around the album', async ({ page }, testInfo) => {
@@ -683,44 +735,94 @@ test('no-JS can close Contact to the back cover and reopen the album', async ({ 
   await context.close();
 });
 
-test('cover drag opens the front cover and closes Contact into the back cover', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === 'mobile-chromium', 'Physical cover drag is desktop-only; mobile keeps labeled controls.');
+test('hard-cover renderer is opaque and bidirectional at both ends with forty-percent commit', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'mobile-chromium', 'Physical cover drag is desktop-only; mobile keeps labelled controls.');
   await page.setViewportSize({ width: 1280, height: 800 });
+
+  const cases = [
+    { route: '/', name: 'Abrir el álbum', mode: 'open-front', direction: 'next', destination: /\/sobre-mi\/$/, cover: 'front-cover' },
+    { route: '/sobre-mi/', name: 'Cerrar álbum', mode: 'close-front', direction: 'previous', destination: /\/$/, cover: 'front-cover' },
+    { route: '/contacto/', name: 'Cerrar álbum', mode: 'close-back', direction: 'next', destination: /\/contraportada\/$/, cover: 'back-cover' },
+    { route: '/contraportada/', name: 'Reabrir álbum', mode: 'open-back', direction: 'previous', destination: /\/contacto\/$/, cover: 'back-cover' },
+  ] as const;
+
+  for (const current of cases) {
+    await page.goto(current.route);
+    await expect(page.locator('html')).toHaveAttribute('data-page-navigation-ready', 'true');
+
+    const navigation = page.getByRole('navigation', { name: 'Recorrido entre páginas del álbum' });
+    let control = navigation.getByRole('link', { name: current.name });
+    await control.hover();
+
+    let renderer = page.locator(`[data-cover-turn="${current.mode}"]`);
+    await expect(renderer).toHaveAttribute('data-cover-ready', 'true');
+    await expect(renderer.locator(`[data-cover-page-wrapper="${current.cover}"]`)).toHaveAttribute('data-density', 'hard');
+    await expect(renderer.locator(`[data-cover-page="${current.cover}"]`)).toHaveCSS('opacity', '1');
+
+    const pageWidth = (await page.locator('.album-stage').boundingBox())?.width ?? 2;
+    const physicalWidth = pageWidth / 2;
+
+    let box = await control.boundingBox();
+    expect(box, current.route).not.toBeNull();
+    if (!box) continue;
+
+    let startX = current.direction === 'next' ? box.x + box.width - 10 : box.x + 10;
+    let startY = box.y + box.height - 10;
+    const cancelX = current.direction === 'next'
+      ? startX - physicalWidth * 0.25
+      : startX + physicalWidth * 0.25;
+
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(cancelX, startY - 24, { steps: 7 });
+    await expect(renderer).toHaveClass(/is-active/);
+    await expect(renderer.locator(`[data-cover-page="${current.cover}"]`)).toHaveCSS('opacity', '1');
+    await page.mouse.up();
+    expect(new URL(page.url()).pathname).toBe(current.route);
+    await expect(page.locator(`[data-cover-turn="${current.mode}"]`)).toHaveCount(0, { timeout: 1500 });
+
+    control = page
+      .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
+      .getByRole('link', { name: current.name });
+    box = await control.boundingBox();
+    expect(box, current.route).not.toBeNull();
+    if (!box) continue;
+
+    startX = current.direction === 'next' ? box.x + box.width - 10 : box.x + 10;
+    startY = box.y + box.height - 10;
+    const commitX = current.direction === 'next'
+      ? startX - physicalWidth * 0.5
+      : startX + physicalWidth * 0.5;
+
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(commitX, startY - 32, { steps: 9 });
+    renderer = page.locator(`[data-cover-turn="${current.mode}"]`);
+    await expect(renderer).toHaveClass(/is-active/);
+    await expect(renderer.locator(`[data-cover-page="${current.cover}"]`)).toHaveCSS('opacity', '1');
+    await page.mouse.up();
+    await expect(page).toHaveURL(current.destination, { timeout: 3500 });
+  }
+});
+
+test('reduced motion keeps cover endpoints semantic without creating a physical cover renderer', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 1280, height: 800 });
+
   await page.goto('/');
-
-  let control = page
+  await page
     .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
-    .getByRole('link', { name: 'Abrir el álbum' });
-  let box = await control.boundingBox();
-  expect(box).not.toBeNull();
-  if (!box) return;
+    .getByRole('link', { name: 'Abrir el álbum' })
+    .click();
+  await expect(page).toHaveURL(/\/sobre-mi\/$/);
+  await expect(page.locator('[data-cover-turn]')).toHaveCount(0);
 
-  let objectWidth = (await page.locator('[data-album-object]').boundingBox())?.width ?? 1;
-  let startX = box.x + box.width - 10;
-  let startY = box.y + box.height - 10;
-  await page.mouse.move(startX, startY);
-  await page.mouse.down();
-  await page.mouse.move(startX - objectWidth * 0.5, startY - 30, { steps: 8 });
-  await expect(page.locator('[data-cover-turn="open-front"]')).toHaveClass(/is-active/);
-  await page.mouse.up();
-  await expect(page).toHaveURL(/\/sobre-mi\/$/, { timeout: 3000 });
-
-  await page.goto('/contacto/');
-  control = page
+  await page
     .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
-    .getByRole('link', { name: 'Cerrar álbum' });
-  box = await control.boundingBox();
-  expect(box).not.toBeNull();
-  if (!box) return;
-
-  objectWidth = (await page.locator('[data-album-spread]').boundingBox())?.width ?? 2;
-  startX = box.x + box.width - 10;
-  startY = box.y + box.height - 10;
-  await page.mouse.move(startX, startY);
-  await page.mouse.down();
-  await page.mouse.move(startX - objectWidth * 0.5, startY - 25, { steps: 8 });
-  await page.mouse.up();
-  await expect(page).toHaveURL(/\/contraportada\/$/, { timeout: 3000 });
+    .getByRole('link', { name: 'Cerrar álbum' })
+    .click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator('[data-cover-turn]')).toHaveCount(0);
 });
 
 test('editorial category mosaic balances the fixture across both pages without destructive crop', async ({ page }) => {

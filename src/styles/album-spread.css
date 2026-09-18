@@ -304,24 +304,30 @@
 
 @media (prefers-reduced-motion: reduce) {
   .album-page,
-  .album-curl-renderer {
+  .album-curl-renderer,
+  .album-cover-curl-renderer {
     transition: none !important;
   }
 }
 
 @media (min-height: 38rem) {
   @container album (min-width: 56rem) {
-    .album-cover-turn-scene {
-      position: absolute;
+    .album-cover-curl-renderer.stf__parent {
+      position: absolute !important;
       inset: 0;
       z-index: 18;
+      width: 100% !important;
+      min-width: 0 !important;
+      height: 100%;
+      min-height: 0 !important;
       overflow: visible;
-      perspective: 2200px;
-      pointer-events: none;
       visibility: hidden;
+      pointer-events: none;
+      touch-action: none;
+      contain: layout paint;
     }
 
-    .album-cover-turn-scene.is-active {
+    .album-cover-curl-renderer.is-active {
       visibility: visible;
     }
 
@@ -329,37 +335,53 @@
       visibility: hidden;
     }
 
-    .album-cover-turn-scene > .cover-turn-source,
-    .album-cover-turn-scene > .cover-turn-destination {
-      position: absolute;
-      inset-block: 0;
+    .album-cover-curl-renderer .stf__wrapper,
+    .album-cover-curl-renderer .stf__block {
+      width: 100% !important;
+      height: 100% !important;
+      min-width: 0;
       min-height: 0;
-      will-change: transform, clip-path, opacity, left;
+      overflow: visible;
     }
 
-    .album-cover-turn-scene[data-cover-turn="open-front"] > .cover-turn-destination,
-    .album-cover-turn-scene[data-cover-turn="open-back"] > .cover-turn-destination {
-      inset-inline: 0;
+    .album-cover-curl-renderer .stf__block {
+      perspective: 2200px;
+    }
+
+    .album-cover-page {
+      overflow: hidden;
+      background: transparent;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+    }
+
+    .album-cover-page > .album-page,
+    .album-cover-page > .album-cover {
       width: 100%;
       height: 100%;
+      min-height: 0;
       margin: 0;
     }
 
-    .album-cover-turn-scene[data-cover-turn="open-front"] > .cover-turn-source,
-    .album-cover-turn-scene[data-cover-turn="open-back"] > .cover-turn-source,
-    .album-cover-turn-scene[data-cover-turn="close-back"] > .cover-turn-destination {
-      top: 0;
-      height: 100%;
-      aspect-ratio: 8 / 9;
+    .album-cover-page > .album-cover {
+      aspect-ratio: auto;
+      opacity: 1 !important;
       transform-style: preserve-3d;
-      backface-visibility: hidden;
+      backface-visibility: visible;
     }
 
-    .album-cover-turn-scene[data-cover-turn="close-back"] > .cover-turn-source {
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      margin: 0;
+    .album-cover-hard-page {
+      background: var(--paper-raised);
+    }
+
+    .album-cover-blank-page {
+      border: 0 !important;
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+
+    .album-cover-curl-renderer img {
+      image-rendering: auto;
     }
   }
 }

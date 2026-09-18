@@ -1,22 +1,25 @@
 import { getOrderedCategories } from './categories';
 import { getCategorySpreads, getCategorySpreadPath } from './category-layout';
 
+export type NavigationKind = 'cover' | 'back-cover' | 'section' | 'category';
+
 export interface NavigationItem {
   href: string;
   label: string;
-  kind: 'section' | 'category';
+  kind: NavigationKind;
 }
 
 export interface AlbumPage {
   href: string;
   label: string;
-  kind: 'cover' | 'back-cover' | 'section' | 'category';
+  kind: NavigationKind;
 }
 
 export async function getAlbumNavigation(): Promise<NavigationItem[]> {
   const categories = await getOrderedCategories();
 
   return [
+    { href: '/', label: 'Portada', kind: 'cover' },
     { href: '/sobre-mi/', label: 'Quién soy', kind: 'section' },
     ...categories.map(({ data }) => ({
       href: `/portfolio/${data.slug}/`,
@@ -24,6 +27,7 @@ export async function getAlbumNavigation(): Promise<NavigationItem[]> {
       kind: 'category' as const,
     })),
     { href: '/contacto/', label: 'Contacto', kind: 'section' },
+    { href: '/contraportada/', label: 'Contraportada', kind: 'back-cover' },
   ];
 }
 

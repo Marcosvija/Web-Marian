@@ -11,14 +11,20 @@ const currentIndex = pages.findIndex(({ href }) => href === currentPath);
 const previous = currentIndex > 0 ? pages[currentIndex - 1] : undefined;
 const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[currentIndex + 1] : undefined;
 
+const closesFrontCover = currentPath === '/sobre-mi/' && previous?.href === '/';
 const previousAria =
-  currentPath === '/contraportada/' ? 'Reabrir álbum' : previous ? `Página anterior: ${previous.label}` : '';
+  currentPath === '/contraportada/' ? 'Reabrir álbum' :
+  closesFrontCover ? 'Cerrar álbum' :
+  previous ? `Página anterior: ${previous.label}` : '';
 const nextAria =
   currentPath === '/' ? 'Abrir el álbum' :
   currentPath === '/contacto/' && next?.href === '/contraportada/' ? 'Cerrar álbum' :
   next ? `Página siguiente: ${next.label}` : '';
 
-const previousKicker = currentPath === '/contraportada/' ? 'Reabrir álbum' : 'Página anterior';
+const previousKicker =
+  currentPath === '/contraportada/' ? 'Reabrir álbum' :
+  closesFrontCover ? 'Cerrar álbum' :
+  'Página anterior';
 const nextKicker =
   currentPath === '/' ? 'Abrir álbum' :
   currentPath === '/contacto/' && next?.href === '/contraportada/' ? 'Cerrar álbum' :
@@ -67,7 +73,7 @@ const nextKicker =
   import { PageFlip } from 'page-flip';
 
   type TurnDirection = 'previous' | 'next';
-  type CoverMode = 'open-front' | 'close-back' | 'open-back';
+  type CoverMode = 'open-front' | 'close-front' | 'close-back' | 'open-back';
 
   interface FlexibleRenderer {
     flip: PageFlip;
@@ -80,11 +86,17 @@ const nextKicker =
   }
 
   interface CoverScene {
+    flip: PageFlip;
     host: HTMLElement;
-    source: HTMLElement;
-    destination: HTMLElement;
     mode: CoverMode;
     link: HTMLAnchorElement;
+    direction: TurnDirection;
+    startPage: number;
+    endPage: number;
+    pageWidth: number;
+    started: boolean;
+    settling: boolean;
+    lastPoint: { x: number; y: number } | null;
   }
 
   const focusKey = 'album-page-navigation-focus';
@@ -186,6 +198,43 @@ const nextKicker =
     const surface = sanitizeVisualClone(source.cloneNode(true) as HTMLElement);
     surface.dataset.curlPage = label;
     wrapper.append(surface);
+    return wrapper;
+  };
+
+  const createCoverSpreadPage = (source: HTMLElement, label: string) => {
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('album-cover-page', ...getViewContext(source));
+    wrapper.dataset.coverPageWrapper = label;
+    wrapper.setAttribute('aria-hidden', 'true');
+    wrapper.setAttribute('inert', '');
+
+    const surface = sanitizeVisualClone(source.cloneNode(true) as HTMLElement);
+    surface.dataset.coverPage = label;
+    wrapper.append(surface);
+    return wrapper;
+  };
+
+  const createHardCoverPage = (source: HTMLElement, label: string) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'album-cover-page album-cover-hard-page';
+    wrapper.dataset.coverPageWrapper = label;
+    wrapper.dataset.density = 'hard';
+    wrapper.setAttribute('aria-hidden', 'true');
+    wrapper.setAttribute('inert', '');
+
+    const surface = sanitizeVisualClone(source.cloneNode(true) as HTMLElement);
+    surface.dataset.coverPage = label;
+    wrapper.append(surface);
+    return wrapper;
+  };
+
+  const createCoverBlankPage = (label: string) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'album-cover-page album-cover-blank-page';
+    wrapper.dataset.coverPageWrapper = label;
+    wrapper.dataset.density = 'hard';
+    wrapper.setAttribute('aria-hidden', 'true');
+    wrapper.setAttribute('inert', '');
     return wrapper;
   };
 
@@ -431,11 +480,17 @@ const nextKicker =
 
   const getCoverMode = (link: HTMLAnchorElement): CoverMode | null => {
     const path = window.location.pathname;
-    if (path === '/' && link.dataset.pageDirection === 'next') return 'open-front';
-    if (path === '/contacto/' && new URL(link.href).pathname === '/contraportada/') return 'close-back';
-    if (path === '/contraportada/' && link.dataset.pageDirection === 'previous') return 'open-back';
+    const destination = new URL(link.href).pathname;
+
+    if (path === '/' && destination === '/sobre-mi/') return 'open-front';
+    if (path === '/sobre-mi/' && destination === '/') return 'close-front';
+    if (path === '/contacto/' && destination === '/contraportada/') return 'close-back';
+    if (path === '/contraportada/' && destination === '/contacto/') return 'open-back';
     return null;
   };
+
+  const coverDirection = (mode: CoverMode): TurnDirection =>
+    mode === 'open-front' || mode === 'close-back' ? 'next' : 'previous';
 
   const prepareCoverScene = (link: HTMLAnchorElement): Promise<CoverScene | null> => {
     const cached = preparedCoverScenes.get(link);
@@ -447,9 +502,8 @@ const nextKicker =
       const object = getObject();
       if (!mode || !stage || !object || !physicalModeAvailable()) return null;
 
-      const sourceSelector = mode === 'close-back' ? '[data-album-spread]' : '[data-album-cover]';
-      const sourceNode = object.querySelector<HTMLElement>(sourceSelector);
-      if (!sourceNode) return null;
+      const currentSpread = object.querySelector<HTMLElement>('[data-album-spread]');
+      const currentCover = object.querySelector<HTMLElement>('[data-album-cover]');
 
       try {
         const response = await fetch(link.href, {
@@ -460,26 +514,97 @@ const nextKicker =
 
         const html = await response.text();
         const parsed = new DOMParser().parseFromString(html, 'text/html');
-        const destinationSelector = mode === 'close-back' ? '[data-album-cover="back"]' : '[data-album-spread]';
-        const destinationNode = parsed.querySelector<HTMLElement>(destinationSelector);
-        if (!destinationNode) return null;
+        const destinationSpread = parsed.querySelector<HTMLElement>('[data-album-spread]');
+        const destinationCover = parsed.querySelector<HTMLElement>('[data-album-cover]');
+
+        const opening = mode === 'open-front' || mode === 'open-back';
+        const spread = opening ? destinationSpread : currentSpread;
+        const cover = opening ? currentCover : destinationCover;
+        const left = spread?.querySelector<HTMLElement>(':scope > .album-page-left');
+        const right = spread?.querySelector<HTMLElement>(':scope > .album-page-right');
+        if (!cover || !left || !right) return null;
+
+        const stageBox = stage.getBoundingClientRect();
+        const referenceHeight =
+          currentSpread?.getBoundingClientRect().height ??
+          currentCover?.getBoundingClientRect().height ??
+          stageBox.height;
+        const pageWidth = stageBox.width / 2;
+        if (pageWidth <= 0 || referenceHeight <= 0) return null;
 
         const host = document.createElement('div');
-        host.className = 'album-cover-turn-scene';
+        host.className = 'album-cover-curl-renderer';
         host.dataset.coverTurn = mode;
+        host.dataset.coverDirection = coverDirection(mode);
         host.setAttribute('aria-hidden', 'true');
         host.setAttribute('inert', '');
 
-        const source = sanitizeVisualClone(sourceNode.cloneNode(true) as HTMLElement);
-        const destination = sanitizeVisualClone(destinationNode.cloneNode(true) as HTMLElement);
-        source.classList.add('cover-turn-source');
-        destination.classList.add('cover-turn-destination');
-        host.append(source, destination);
+        let pages: HTMLElement[];
+        let startPage: number;
+        let endPage: number;
+
+        if (mode === 'open-front' || mode === 'close-front') {
+          pages = [
+            createHardCoverPage(cover, 'front-cover'),
+            createCoverSpreadPage(left, 'spread-left'),
+            createCoverSpreadPage(right, 'spread-right'),
+            createCoverBlankPage('back-placeholder'),
+          ];
+          startPage = mode === 'open-front' ? 0 : 1;
+          endPage = mode === 'open-front' ? 1 : 0;
+        } else {
+          pages = [
+            createCoverBlankPage('front-placeholder'),
+            createCoverSpreadPage(left, 'spread-left'),
+            createCoverSpreadPage(right, 'spread-right'),
+            createHardCoverPage(cover, 'back-cover'),
+          ];
+          startPage = mode === 'close-back' ? 1 : 3;
+          endPage = mode === 'close-back' ? 3 : 1;
+        }
+
+        host.append(...pages);
         stage.append(host);
+
+        const flip = new PageFlip(host, {
+          width: Math.round(pageWidth),
+          height: Math.round(referenceHeight),
+          size: 'fixed',
+          startPage,
+          drawShadow: true,
+          flippingTime: 420,
+          usePortrait: false,
+          startZIndex: 24,
+          autoSize: false,
+          maxShadowOpacity: 0.48,
+          showCover: true,
+          mobileScrollSupport: true,
+          clickEventForward: false,
+          useMouseEvents: false,
+          showPageCorners: false,
+          disableFlipByClick: true,
+        });
+
+        flip.loadFromHTML(pages);
+        flip.turnToPage(startPage);
         await waitForVisualAssets(host);
 
+        const scene: CoverScene = {
+          flip,
+          host,
+          mode,
+          link,
+          direction: coverDirection(mode),
+          startPage,
+          endPage,
+          pageWidth,
+          started: false,
+          settling: false,
+          lastPoint: null,
+        };
+
         host.dataset.coverReady = 'true';
-        return { host, source, destination, mode, link };
+        return scene;
       } catch {
         preparedCoverScenes.delete(link);
         return null;
@@ -490,71 +615,104 @@ const nextKicker =
     return task;
   };
 
-  const applyCoverProgress = (
+  const coverRendererPoint = (
     scene: CoverScene,
-    progress: number,
-    verticalDelta: number,
+    clientX: number,
+    clientY: number,
   ) => {
-    const p = Math.max(0, Math.min(progress, 1));
+    const dist = scene.flip.getUI().getDistElement();
+    const rect = dist.getBoundingClientRect();
+
+    return {
+      x: Math.max(1, Math.min(clientX - rect.left, rect.width - 1)),
+      y: Math.max(1, Math.min(clientY - rect.top, rect.height - 1)),
+    };
+  };
+
+  const beginCoverTurn = (
+    scene: CoverScene,
+    startClientX: number,
+    startClientY: number,
+    currentClientX: number,
+    currentClientY: number,
+  ) => {
+    if (scene.started || scene.settling) return;
+
     const stage = getStage();
     if (!stage) return;
 
     stage.classList.add('is-cover-turning');
     scene.host.classList.add('is-active');
-    scene.host.style.setProperty('--cover-progress', String(p));
+    scene.host.dataset.coverActive = 'true';
 
-    const tilt = Math.max(-5, Math.min(5, verticalDelta * 0.025));
-    const { source, destination, mode } = scene;
+    const start = coverRendererPoint(scene, startClientX, startClientY);
+    const current = coverRendererPoint(scene, currentClientX, currentClientY);
+    scene.flip.startUserTouch(start);
+    scene.flip.userMove(current, false);
+    scene.lastPoint = current;
+    scene.started = true;
+    document.documentElement.dataset.albumCoverActive = scene.mode;
+  };
 
-    if (mode === 'open-front') {
-      destination.style.clipPath = `inset(0 ${25 * (1 - p)}%)`;
-      destination.style.opacity = String(Math.min(1, p * 1.6));
-      source.style.left = `${25 + 25 * p}%`;
-      source.style.width = '50%';
-      source.style.transformOrigin = 'left center';
-      source.style.transform = `rotateY(${-180 * p}deg) rotateX(${tilt}deg)`;
-    } else if (mode === 'open-back') {
-      destination.style.clipPath = `inset(0 ${25 * (1 - p)}%)`;
-      destination.style.opacity = String(Math.min(1, p * 1.6));
-      source.style.left = `${25 - 25 * p}%`;
-      source.style.width = '50%';
-      source.style.transformOrigin = 'right center';
-      source.style.transform = `rotateY(${180 * p}deg) rotateX(${tilt}deg)`;
-    } else {
-      source.style.clipPath = `inset(0 ${25 * p}%)`;
-      destination.style.left = `${25 * p}%`;
-      destination.style.width = '50%';
-      destination.style.opacity = String(Math.min(1, 0.15 + p));
-      destination.style.transformOrigin = 'right center';
-      destination.style.transform = `rotateY(${180 * (1 - p)}deg) rotateX(${-tilt}deg)`;
-    }
+  const moveCoverTurn = (
+    scene: CoverScene,
+    clientX: number,
+    clientY: number,
+  ) => {
+    if (!scene.started || scene.settling) return;
+
+    const point = coverRendererPoint(scene, clientX, clientY);
+    scene.flip.userMove(point, false);
+    scene.lastPoint = point;
   };
 
   const destroyCoverScene = (scene: CoverScene) => {
     getStage()?.classList.remove('is-cover-turning');
-    scene.host.remove();
+    delete document.documentElement.dataset.albumCoverActive;
     preparedCoverScenes.delete(scene.link);
+
+    try {
+      scene.flip.destroy();
+    } catch {
+      scene.host.remove();
+    }
   };
 
   const animateCoverTo = async (
     scene: CoverScene,
-    from: number,
-    to: number,
+    target: { x: number; y: number },
     duration: number,
   ) => {
+    const start = scene.lastPoint ?? target;
     const startedAt = performance.now();
 
     await new Promise<void>((resolve) => {
       const frame = (now: number) => {
         const elapsed = Math.min(1, (now - startedAt) / Math.max(duration, 1));
         const eased = 1 - Math.pow(1 - elapsed, 3);
-        applyCoverProgress(scene, from + (to - from) * eased, 0);
+        const point = {
+          x: start.x + (target.x - start.x) * eased,
+          y: start.y + (target.y - start.y) * eased,
+        };
+
+        scene.flip.userMove(point, false);
+        scene.lastPoint = point;
 
         if (elapsed < 1) requestAnimationFrame(frame);
         else resolve();
       };
+
       requestAnimationFrame(frame);
     });
+  };
+
+  const startAutomaticCoverTurn = (scene: CoverScene) => {
+    const dist = scene.flip.getUI().getDistElement();
+    const rect = dist.getBoundingClientRect();
+    const startX = scene.direction === 'next' ? rect.right - 10 : rect.left + 10;
+    const startY = rect.bottom - 10;
+    const currentX = scene.direction === 'next' ? startX - 12 : startX + 12;
+    beginCoverTurn(scene, startX, startY, currentX, startY - 2);
   };
 
   const settleCoverTurn = async (
@@ -563,19 +721,37 @@ const nextKicker =
     commit: boolean,
     origin: 'pointer' | 'keyboard' = 'pointer',
   ) => {
+    if (!scene.started || scene.settling) return;
+    scene.settling = true;
+
+    const dist = scene.flip.getUI().getDistElement();
+    const rect = dist.getBoundingClientRect();
     const clamped = Math.max(0, Math.min(progress, 1));
-    const target = commit ? 1 : 0;
-    const distance = Math.abs(target - clamped);
-    await animateCoverTo(scene, clamped, target, Math.round(170 + distance * 250));
+    const target = commit
+      ? {
+          x: scene.direction === 'next' ? 1 : rect.width - 1,
+          y: rect.height - 1,
+        }
+      : {
+          x: scene.direction === 'next' ? rect.width - 1 : 1,
+          y: rect.height - 1,
+        };
+    const duration = commit
+      ? Math.round(190 + (1 - clamped) * 250)
+      : Math.round(170 + clamped * 140);
+
+    await animateCoverTo(scene, target, duration);
 
     if (!commit) {
       destroyCoverScene(scene);
       return;
     }
 
+    scene.flip.turnToPage(scene.endPage);
+    scene.host.dataset.coverSettled = 'true';
     sessionStorage.setItem(focusKey, origin);
     document.documentElement.dataset.albumTurnNavigation = 'committed';
-    scene.host.dataset.coverSettled = 'true';
+
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     window.location.assign(scene.link.href);
   };
@@ -629,13 +805,7 @@ const nextKicker =
         void prepareCoverScene(link).then((scene) => {
           activeCover = scene;
           if (!scene || pointerId === null || !dragging) return;
-          const pageWidth = getObject()?.getBoundingClientRect().width ?? 1;
-          const raw = lastX - startX;
-          const distance =
-            coverMode === 'open-back' ? raw :
-            coverMode === 'close-back' ? -raw :
-            -raw;
-          applyCoverProgress(scene, Math.max(0, distance) / pageWidth, lastY - startY);
+          beginCoverTurn(scene, startX, startY, lastX, lastY);
         });
         return;
       }
@@ -671,7 +841,7 @@ const nextKicker =
           navigateDirect(link, origin);
           return;
         }
-        applyCoverProgress(scene, 0, 0);
+        startAutomaticCoverTurn(scene);
         void settleCoverTurn(scene, 0, true, origin);
       });
     });
@@ -709,9 +879,11 @@ const nextKicker =
       const coverMode = getCoverMode(link);
       if (coverMode) {
         if (!activeCover) return;
-        const pageWidth = getObject()?.getBoundingClientRect().width ?? 1;
-        const distance = coverMode === 'open-back' ? rawDistance : -rawDistance;
-        applyCoverProgress(activeCover, Math.max(0, distance) / pageWidth, event.clientY - startY);
+        if (!activeCover.started) {
+          beginCoverTurn(activeCover, startX, startY, lastX, lastY);
+        } else {
+          moveCoverTurn(activeCover, lastX, lastY);
+        }
         return;
       }
 
@@ -729,13 +901,9 @@ const nextKicker =
       const rawDistance = event.clientX - startX;
       const coverMode = getCoverMode(link);
       const pageWidth = coverMode
-        ? getObject()?.getBoundingClientRect().width ?? 1
+        ? activeCover?.pageWidth ?? (getStage()?.getBoundingClientRect().width ?? 2) / 2
         : getActivePage(direction)?.getBoundingClientRect().width ?? 1;
-      const distance = coverMode === 'open-back'
-        ? rawDistance
-        : direction === 'next'
-          ? -rawDistance
-          : rawDistance;
+      const distance = direction === 'next' ? -rawDistance : rawDistance;
       const progress = Math.max(0, Math.min(distance / pageWidth, 1));
       pointerId = null;
 
@@ -771,10 +939,10 @@ const nextKicker =
       suppressClick = true;
       dragging = false;
       const coverMode = getCoverMode(link);
-      if (coverMode && activeCover) {
-        const pageWidth = getObject()?.getBoundingClientRect().width ?? 1;
+      if (coverMode && activeCover?.started) {
+        const pageWidth = activeCover.pageWidth;
         const raw = lastX - startX;
-        const distance = coverMode === 'open-back' ? raw : -raw;
+        const distance = direction === 'next' ? -raw : raw;
         const progress = Math.max(0, Math.min(distance / pageWidth, 1));
         void settleCoverTurn(activeCover, progress, false);
       } else if (activeRenderer?.started) {
@@ -813,7 +981,7 @@ const nextKicker =
           navigateDirect(matchingControl, origin);
           return;
         }
-        applyCoverProgress(scene, 0, 0);
+        startAutomaticCoverTurn(scene);
         void settleCoverTurn(scene, 0, true, origin);
       });
     });

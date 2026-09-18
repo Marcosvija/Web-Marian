@@ -11,15 +11,26 @@ const normalizePath = (path: string) => (path.endsWith('/') ? path : `${path}/`)
 const activePath = normalizePath(currentPath);
 ---
 
-<details class="bookmark-index">
-  <summary>Índice</summary>
+<details class="bookmark-index" data-bookmark-index>
+  <summary>
+    <span class="bookmark-ribbon-label">Índice</span>
+  </summary>
   <nav class="bookmark-panel" aria-label="Índice del álbum">
     <p class="bookmark-heading">Atrapando instantes</p>
     <ul>
       {items.map((item) => {
         const isCurrent = activePath === normalizePath(item.href);
+        const isCover = item.kind === 'cover' || item.kind === 'back-cover';
         return (
-          <li class:list={[{ 'is-category': item.kind === 'category' }]}>
+          <li
+            data-bookmark-kind={item.kind}
+            class:list={[
+              {
+                'is-category': item.kind === 'category',
+                'is-cover-destination': isCover,
+              },
+            ]}
+          >
             <a href={item.href} aria-current={isCurrent ? 'page' : undefined}>
               <span>{item.label}</span>
               {isCurrent && <span class="current-marker">Actual</span>}
