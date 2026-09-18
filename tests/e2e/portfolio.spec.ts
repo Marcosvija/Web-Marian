@@ -18,10 +18,10 @@ test('the album routes, sequential page controls and recoverable index work with
   await page.locator('.bookmark-index summary').click();
   const albumIndex = page.getByRole('navigation', { name: 'Índice del álbum' });
   await expect(albumIndex.getByRole('link', { name: 'Portfolio', exact: true })).toHaveCount(0);
-  await expect(albumIndex.getByRole('link', { name: 'Portada' })).toBeVisible();
+  await expect(albumIndex.getByRole('link', { name: 'Portada', exact: true })).toBeVisible();
   await expect(albumIndex.getByRole('link', { name: 'Quién soy' })).toBeVisible();
   await expect(albumIndex.getByRole('link', { name: 'Contacto' })).toBeVisible();
-  await expect(albumIndex.getByRole('link', { name: 'Contraportada' })).toBeVisible();
+  await expect(albumIndex.getByRole('link', { name: 'Contraportada', exact: true })).toBeVisible();
   await albumIndex.getByRole('link', { name: 'Categoría de prueba', exact: true }).click();
   await expect(page).toHaveURL(/\/portfolio\/categoria-de-prueba\/$/);
 
@@ -176,10 +176,10 @@ test('the bookmark is physically inserted and includes both covers in canonical 
     await expect(panel.locator('[data-bookmark-kind="back-cover"]')).not.toHaveClass(/is-category/);
 
     if (route === '/') {
-      await expect(panel.getByRole('link', { name: 'Portada' })).toHaveAttribute('aria-current', 'page');
+      await expect(panel.getByRole('link', { name: 'Portada', exact: true })).toHaveAttribute('aria-current', 'page');
     }
     if (route === '/contraportada/') {
-      await expect(panel.getByRole('link', { name: 'Contraportada' })).toHaveAttribute('aria-current', 'page');
+      await expect(panel.getByRole('link', { name: 'Contraportada', exact: true })).toHaveAttribute('aria-current', 'page');
     }
   }
 });
