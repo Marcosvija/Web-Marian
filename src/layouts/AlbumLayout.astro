@@ -1,6 +1,7 @@
 ---
 import BookmarkIndex from '../components/BookmarkIndex.astro';
-import { getAlbumNavigation } from '../lib/navigation';
+import PageNavigation from '../components/PageNavigation.astro';
+import { getAlbumNavigation, getAlbumPageSequence } from '../lib/navigation';
 import BaseLayout from './BaseLayout.astro';
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 
 const { title, description } = Astro.props;
 const navigation = await getAlbumNavigation();
+const pageSequence = await getAlbumPageSequence();
 ---
 
 <BaseLayout title={title} description={description}>
@@ -25,6 +27,7 @@ const navigation = await getAlbumNavigation();
 
     <main id="contenido" class="album-frame" tabindex="-1">
       <slot />
+      <PageNavigation pages={pageSequence} currentPath={Astro.url.pathname} />
     </main>
   </div>
 </BaseLayout>
