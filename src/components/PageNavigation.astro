@@ -1,0 +1,91 @@
+---
+import type { AlbumPage } from '../lib/navigation';
+
+interface Props {
+  pages: AlbumPage[];
+  currentPath: string;
+}
+
+const { pages, currentPath } = Astro.props;
+const currentIndex = pages.findIndex(({ href }) => href === currentPath);
+const previous = currentIndex > 0 ? pages[currentIndex - 1] : undefined;
+const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[currentIndex + 1] : undefined;
+---
+
+{(previous || next) && (
+  <nav class="page-navigation" aria-label="Recorrido entre páginas del álbum" data-page-navigation>
+    {previous ? (
+      <a
+        class="page-navigation-control page-navigation-previous"
+        href={previous.href}
+        rel="prev"
+        aria-label={`Página anterior: ${previous.label}`}
+        data-page-direction="previous"
+      >
+        <span class="page-navigation-arrow" aria-hidden="true">←</span>
+        <span class="page-navigation-copy">
+          <span class="page-navigation-kicker">Página anterior</span>
+          <span>{previous.label}</span>
+        </span>
+      </a>
+    ) : <span class="page-navigation-spacer" aria-hidden="true"></span>}
+
+    {next ? (
+      <a
+        class="page-navigation-control page-navigation-next"
+        href={next.href}
+        rel="next"
+        aria-label={`Página siguiente: ${next.label}`}
+        data-page-direction="next"
+      >
+        <span class="page-navigation-copy">
+          <span class="page-navigation-kicker">Página siguiente</span>
+          <span>{next.label}</span>
+        </span>
+        <span class="page-navigation-arrow" aria-hidden="true">→</span>
+      </a>
+    ) : <span class="page-navigation-spacer" aria-hidden="true"></span>}
+  </nav>
+)}
+
+<script>
+  const focusKey = 'album-page-navigation-focus';
+
+  const focusDestination = () => {
+    if (sessionStorage.getItem(focusKey) !== '1') return;
+    sessionStorage.removeItem(focusKey);
+    document.querySelector<HTMLElement>('#contenido')?.focus({ preventScroll: true });
+  };
+
+  focusDestination();
+
+  document.querySelectorAll<HTMLAnchorElement>('[data-page-navigation] a').forEach((link) => {
+    link.addEventListener('click', () => {
+      sessionStorage.setItem(focusKey, '1');
+    });
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    if (document.querySelector('dialog[open]')) return;
+
+    const target = event.target;
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement ||
+      (target instanceof HTMLElement && target.isContentEditable)
+    ) return;
+
+    const direction = event.key === 'ArrowLeft' ? 'previous' : 'next';
+    const link = document.querySelector<HTMLAnchorElement>(
+      `[data-page-navigation] a[data-page-direction="${direction}"]`,
+    );
+    if (!link) return;
+
+    event.preventDefault();
+    sessionStorage.setItem(focusKey, '1');
+    window.location.assign(link.href);
+  });
+</script>
