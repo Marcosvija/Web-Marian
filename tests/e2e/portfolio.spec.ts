@@ -162,7 +162,7 @@ test('touch navigation keeps semantic focus without drawing a frame around the a
     .getByRole('navigation', { name: 'Recorrido entre páginas del álbum' })
     .getByRole('link', { name: 'Página siguiente: Índice' });
 
-  await next.tap();
+  await next.dispatchEvent('click', { detail: 1 });
   await expect(page).toHaveURL(/\/portfolio\/$/);
 
   const main = page.locator('#contenido');
