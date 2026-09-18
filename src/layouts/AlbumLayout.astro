@@ -26,8 +26,10 @@ const pageSequence = await getAlbumPageSequence();
     <BookmarkIndex items={navigation} currentPath={Astro.url.pathname} />
 
     <main id="contenido" class="album-frame" tabindex="-1">
-      <slot />
-      <PageNavigation pages={pageSequence} currentPath={Astro.url.pathname} />
+      <div class="album-stage">
+        <slot />
+        <PageNavigation pages={pageSequence} currentPath={Astro.url.pathname} />
+      </div>
     </main>
   </div>
 </BaseLayout>

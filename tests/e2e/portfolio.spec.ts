@@ -182,34 +182,58 @@ test('desktop interior is a two-page spread with content distributed across both
   expect(await right.locator('.category-list a').count()).toBeGreaterThan(0);
 });
 
-test('desktop previous and next controls are discoverable lower outer page corners', async ({ page }) => {
+test('desktop physical corners stay attached to the lower edge of every interior spread', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto('/portfolio/categoria-de-prueba/');
 
-  const spreadBox = await page.locator('[data-album-spread]').boundingBox();
-  const pageNavigation = page.getByRole('navigation', { name: 'Recorrido entre páginas del álbum' });
-  const previousBox = await pageNavigation.getByRole('link', { name: 'Página anterior: Índice' }).boundingBox();
-  const nextBox = await pageNavigation
-    .getByRole('link', { name: 'Página siguiente: Segunda categoría de prueba' })
-    .boundingBox();
+  for (const route of [
+    '/sobre-mi/',
+    '/portfolio/',
+    '/portfolio/categoria-de-prueba/',
+    '/contacto/',
+  ]) {
+    await page.goto(route);
 
-  expect(spreadBox).not.toBeNull();
-  expect(previousBox).not.toBeNull();
-  expect(nextBox).not.toBeNull();
-  expect(previousBox?.width ?? 0).toBeGreaterThanOrEqual(44);
-  expect(previousBox?.height ?? 0).toBeGreaterThanOrEqual(44);
-  expect(nextBox?.width ?? 0).toBeGreaterThanOrEqual(44);
-  expect(nextBox?.height ?? 0).toBeGreaterThanOrEqual(44);
-  expect(previousBox?.x ?? Infinity).toBeLessThan((spreadBox?.x ?? 0) + 12);
-  expect((nextBox?.x ?? 0) + (nextBox?.width ?? 0)).toBeGreaterThan(
-    (spreadBox?.x ?? 0) + (spreadBox?.width ?? 0) - 12,
-  );
-  expect((previousBox?.y ?? 0) + (previousBox?.height ?? 0)).toBeGreaterThan(
-    (spreadBox?.y ?? 0) + (spreadBox?.height ?? 0) - 12,
-  );
-  expect((nextBox?.y ?? 0) + (nextBox?.height ?? 0)).toBeGreaterThan(
-    (spreadBox?.y ?? 0) + (spreadBox?.height ?? 0) - 12,
-  );
+    const spread = page.locator('[data-album-spread]');
+    const stage = page.locator('.album-stage');
+    const navigation = page.getByRole('navigation', { name: 'Recorrido entre páginas del álbum' });
+    const controls = navigation.locator('.page-navigation-control');
+    const spreadBox = await spread.boundingBox();
+    const stageBox = await stage.boundingBox();
+
+    expect(spreadBox, route).not.toBeNull();
+    expect(stageBox, route).not.toBeNull();
+
+    const spreadBottom = (spreadBox?.y ?? 0) + (spreadBox?.height ?? 0);
+    const stageBottom = (stageBox?.y ?? 0) + (stageBox?.height ?? 0);
+    expect(Math.abs(stageBottom - spreadBottom), route).toBeLessThan(3);
+
+    const count = await controls.count();
+    expect(count, route).toBeGreaterThan(0);
+
+    for (let index = 0; index < count; index += 1) {
+      const controlBox = await controls.nth(index).boundingBox();
+      expect(controlBox, `${route} control ${index}`).not.toBeNull();
+      expect(controlBox?.width ?? 0, route).toBeGreaterThanOrEqual(44);
+      expect(controlBox?.height ?? 0, route).toBeGreaterThanOrEqual(44);
+
+      const controlBottom = (controlBox?.y ?? 0) + (controlBox?.height ?? 0);
+      expect(Math.abs(controlBottom - spreadBottom), route).toBeLessThan(3);
+    }
+
+    const previous = navigation.locator('[data-page-direction="previous"]');
+    if (await previous.count()) {
+      const previousBox = await previous.boundingBox();
+      expect(previousBox?.x ?? Infinity, route).toBeLessThan((spreadBox?.x ?? 0) + 12);
+    }
+
+    const next = navigation.locator('[data-page-direction="next"]');
+    if (await next.count()) {
+      const nextBox = await next.boundingBox();
+      expect((nextBox?.x ?? 0) + (nextBox?.width ?? 0), route).toBeGreaterThan(
+        (spreadBox?.x ?? 0) + (spreadBox?.width ?? 0) - 12,
+      );
+    }
+  }
 });
 
 test('physical page drag cancels below forty percent and confirms above it in both directions', async ({ page }) => {

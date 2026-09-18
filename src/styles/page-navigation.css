@@ -2,6 +2,12 @@
   position: relative;
 }
 
+.album-stage {
+  position: relative;
+  min-width: 0;
+  align-self: start;
+}
+
 .page-navigation {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
