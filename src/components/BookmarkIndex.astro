@@ -49,19 +49,26 @@ const activePath = normalizePath(currentPath);
     if (!bookmark) return;
 
     const albumObject = bookmark.closest<HTMLElement>('[data-album-object]');
-    const top = albumObject?.getBoundingClientRect().top ?? bookmark.getBoundingClientRect().top;
-    const viewportGap = 8;
-    const desiredLift = 32;
-    const lift = Math.max(0, Math.min(desiredLift, top - viewportGap));
-    const remainingHeadroom = Math.max(0, top - lift - viewportGap);
+    if (!albumObject) return;
 
-    bookmark.style.setProperty('--bookmark-lift', `${lift}px`);
-    bookmark.style.setProperty('--bookmark-hover-pull', `${Math.min(6, remainingHeadroom)}px`);
-    bookmark.style.setProperty('--bookmark-open-pull', `${Math.min(24, remainingHeadroom)}px`);
-    bookmark.style.setProperty(
-      '--bookmark-panel-viewport-top',
-      `${Math.max(viewportGap, top + 14)}px`,
-    );
+    const objectBox = albumObject.getBoundingClientRect();
+    const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    const leftSide = albumObject.classList.contains('is-back-cover-object');
+    const sideSpace = leftSide ? objectBox.left : viewportWidth - objectBox.right;
+    const viewportGap = 3;
+    const desiredExposed = 22;
+    const availableOutside = Math.max(0, sideSpace - viewportGap);
+    const exposed = Math.min(desiredExposed, availableOutside);
+    const remainingOutside = Math.max(0, availableOutside - exposed);
+    const anchorTop = objectBox.top + objectBox.height * 0.4;
+    const panelMaxHeight = Math.max(160, viewportHeight - anchorTop - 10);
+
+    bookmark.style.setProperty('--bookmark-exposed', `${exposed}px`);
+    bookmark.style.setProperty('--bookmark-hover-pull', `${Math.min(6, remainingOutside)}px`);
+    bookmark.style.setProperty('--bookmark-open-pull', `${Math.min(16, remainingOutside)}px`);
+    bookmark.style.setProperty('--bookmark-panel-max-height', `${panelMaxHeight}px`);
+    bookmark.dataset.bookmarkSide = leftSide ? 'left' : 'right';
     bookmark.dataset.bookmarkViewportReady = 'true';
   };
 

@@ -325,6 +325,7 @@
       pointer-events: none;
       touch-action: none;
       contain: layout paint;
+      translate: var(--cover-scene-shift, 0) 0;
     }
 
     .album-cover-curl-renderer.is-active {

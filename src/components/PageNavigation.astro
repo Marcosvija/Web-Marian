@@ -97,6 +97,8 @@ const nextKicker =
     started: boolean;
     settling: boolean;
     lastPoint: { x: number; y: number } | null;
+    dragStartClientX: number | null;
+    visualProgress: number;
   }
 
   const focusKey = 'album-page-navigation-focus';
@@ -601,8 +603,11 @@ const nextKicker =
           started: false,
           settling: false,
           lastPoint: null,
+          dragStartClientX: null,
+          visualProgress: 0,
         };
 
+        updateCoverSceneSpatialProgress(scene, 0);
         host.dataset.coverReady = 'true';
         return scene;
       } catch {
@@ -613,6 +618,29 @@ const nextKicker =
 
     preparedCoverScenes.set(link, task);
     return task;
+  };
+
+  const updateCoverSceneSpatialProgress = (scene: CoverScene, progress: number) => {
+    const clamped = Math.max(0, Math.min(progress, 1));
+    const closedShift = scene.mode.includes('front')
+      ? -scene.pageWidth / 2
+      : scene.pageWidth / 2;
+    const opening = scene.mode === 'open-front' || scene.mode === 'open-back';
+    const shift = opening
+      ? closedShift * (1 - clamped)
+      : closedShift * clamped;
+
+    scene.visualProgress = clamped;
+    scene.host.style.setProperty('--cover-scene-shift', `${shift}px`);
+    scene.host.dataset.coverSpatialProgress = clamped.toFixed(3);
+  };
+
+  const coverProgressFromClientX = (scene: CoverScene, clientX: number) => {
+    if (scene.dragStartClientX === null) return scene.visualProgress;
+
+    const rawDistance = clientX - scene.dragStartClientX;
+    const distance = scene.direction === 'next' ? -rawDistance : rawDistance;
+    return Math.max(0, Math.min(distance / scene.pageWidth, 1));
   };
 
   const coverRendererPoint = (
@@ -647,9 +675,11 @@ const nextKicker =
 
     const start = coverRendererPoint(scene, startClientX, startClientY);
     const current = coverRendererPoint(scene, currentClientX, currentClientY);
+    scene.dragStartClientX = startClientX;
     scene.flip.startUserTouch(start);
     scene.flip.userMove(current, false);
     scene.lastPoint = current;
+    updateCoverSceneSpatialProgress(scene, coverProgressFromClientX(scene, currentClientX));
     scene.started = true;
     document.documentElement.dataset.albumCoverActive = scene.mode;
   };
@@ -664,6 +694,7 @@ const nextKicker =
     const point = coverRendererPoint(scene, clientX, clientY);
     scene.flip.userMove(point, false);
     scene.lastPoint = point;
+    updateCoverSceneSpatialProgress(scene, coverProgressFromClientX(scene, clientX));
   };
 
   const destroyCoverScene = (scene: CoverScene) => {
@@ -681,9 +712,11 @@ const nextKicker =
   const animateCoverTo = async (
     scene: CoverScene,
     target: { x: number; y: number },
+    targetProgress: number,
     duration: number,
   ) => {
     const start = scene.lastPoint ?? target;
+    const startProgress = scene.visualProgress;
     const startedAt = performance.now();
 
     await new Promise<void>((resolve) => {
@@ -699,6 +732,10 @@ const nextKicker =
 
         scene.flip.userMove(point, false);
         scene.lastPoint = point;
+        updateCoverSceneSpatialProgress(
+          scene,
+          startProgress + (targetProgress - startProgress) * eased,
+        );
 
         if (elapsed < 1) requestAnimationFrame(frame);
         else resolve();
@@ -742,7 +779,7 @@ const nextKicker =
       ? Math.round(260 + (1 - clamped) * 320)
       : Math.round(220 + clamped * 180);
 
-    await animateCoverTo(scene, target, duration);
+    await animateCoverTo(scene, target, commit ? 1 : 0, duration);
 
     if (!commit) {
       destroyCoverScene(scene);

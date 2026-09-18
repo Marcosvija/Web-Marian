@@ -328,9 +328,8 @@ test('desktop album scales proportionally with the useful viewport without a fix
     expect(coverBox).not.toBeNull();
     expect(Math.abs((coverBox?.height ?? 0) - expectedHeight)).toBeLessThan(2);
     expect(Math.abs((coverBox?.width ?? 0) - expectedWidth / 2)).toBeLessThan(3);
-    // The closed front cover keeps its left spine on the same center axis as the open spread.
     expect(
-      Math.abs((coverBox?.x ?? 0) - viewport.width / 2),
+      Math.abs((coverBox?.x ?? 0) + (coverBox?.width ?? 0) / 2 - viewport.width / 2),
     ).toBeLessThan(4);
   }
 
@@ -649,33 +648,32 @@ test('the album sequence closes after Contact and reopens from the back cover', 
   await expect(page.locator('[data-album-cover="back"]').getByRole('link', { name: 'Reabrir álbum', exact: true })).toBeVisible();
 });
 
-test('closed front and back covers share one-page geometry and Marian stays anchored to the object', async ({ page }) => {
+test('closed front and back covers are centered with the same one-page geometry', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const measurements: Array<{ width: number; height: number }> = [];
 
   for (const route of ['/', '/contraportada/']) {
     await page.goto(route);
-    const stage = page.locator('.album-stage');
     const object = page.locator('[data-album-object]');
     const cover = page.locator('[data-album-cover]');
     const home = page.locator('.site-home');
-    const stageBox = await stage.boundingBox();
     const objectBox = await object.boundingBox();
     const coverBox = await cover.boundingBox();
     const homeBox = await home.boundingBox();
 
-    expect(stageBox, route).not.toBeNull();
     expect(objectBox, route).not.toBeNull();
     expect(coverBox, route).not.toBeNull();
     expect(homeBox, route).not.toBeNull();
     expect(Math.abs((homeBox?.x ?? 0) - (objectBox?.x ?? 0)), route).toBeLessThan(3);
     expect(Math.abs((coverBox?.width ?? 0) - (objectBox?.width ?? 0)), route).toBeLessThan(3);
-
-    const stageSpine = (stageBox?.x ?? 0) + (stageBox?.width ?? 0) / 2;
-    const objectSpine = route === '/'
-      ? (objectBox?.x ?? 0)
-      : (objectBox?.x ?? 0) + (objectBox?.width ?? 0);
-    expect(Math.abs(objectSpine - stageSpine), route).toBeLessThan(3);
+    expect(
+      Math.abs((objectBox?.x ?? 0) + (objectBox?.width ?? 0) / 2 - 720),
+      route,
+    ).toBeLessThan(3);
+    expect(
+      Math.abs((coverBox?.x ?? 0) + (coverBox?.width ?? 0) / 2 - 720),
+      route,
+    ).toBeLessThan(3);
 
     measurements.push({ width: coverBox?.width ?? 0, height: coverBox?.height ?? 0 });
   }
@@ -684,34 +682,75 @@ test('closed front and back covers share one-page geometry and Marian stays anch
   expect(Math.abs((measurements[0]?.height ?? 0) - (measurements[1]?.height ?? 0))).toBeLessThan(2);
 });
 
-test('desktop bookmark stays inside the viewport while preserving its inserted ribbon geometry', async ({ page }) => {
+test('desktop bookmark is a viewport-safe lateral ribbon that mirrors on the back cover', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto('/');
-  const bookmark = page.locator('[data-bookmark-index]');
-  const summary = bookmark.locator('summary');
 
-  await expect(bookmark).toHaveAttribute('data-bookmark-viewport-ready', 'true');
-  await expect(summary).toBeVisible();
+  for (const current of [
+    { route: '/', side: 'right' },
+    { route: '/portfolio/', side: 'right' },
+    { route: '/contraportada/', side: 'left' },
+  ] as const) {
+    await page.goto(current.route);
+    const object = page.locator('[data-album-object]');
+    const bookmark = page.locator('[data-bookmark-index]');
+    const summary = bookmark.locator('summary');
 
-  const expectInsideViewport = async (locator: import('@playwright/test').Locator) => {
-    const box = await locator.boundingBox();
-    expect(box).not.toBeNull();
-    if (!box) return;
-    expect(box.x).toBeGreaterThanOrEqual(0);
-    expect(box.y).toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width).toBeLessThanOrEqual(1281);
-    expect(box.y + box.height).toBeLessThanOrEqual(801);
-  };
+    await expect(bookmark).toHaveAttribute('data-bookmark-viewport-ready', 'true');
+    await expect(bookmark).toHaveAttribute('data-bookmark-side', current.side);
+    await expect(summary).toBeVisible();
+    await expect(summary).toHaveCSS('writing-mode', 'vertical-rl');
 
-  await expectInsideViewport(summary);
-  await summary.focus();
-  await expectInsideViewport(summary);
+    const objectBox = await object.boundingBox();
+    const summaryBox = await summary.boundingBox();
+    expect(objectBox, current.route).not.toBeNull();
+    expect(summaryBox, current.route).not.toBeNull();
+    if (!objectBox || !summaryBox) continue;
 
-  await summary.click();
-  const panel = page.getByRole('navigation', { name: 'Índice del álbum' });
-  await expect(panel).toBeVisible();
-  await expectInsideViewport(summary);
-  await expectInsideViewport(panel);
+    const objectRight = objectBox.x + objectBox.width;
+    const summaryRight = summaryBox.x + summaryBox.width;
+    if (current.side === 'right') {
+      expect(summaryBox.x, current.route).toBeLessThan(objectRight);
+      expect(summaryRight, current.route).toBeGreaterThan(objectRight);
+    } else {
+      expect(summaryBox.x, current.route).toBeLessThan(objectBox.x);
+      expect(summaryRight, current.route).toBeGreaterThan(objectBox.x);
+    }
+
+    const expectInsideViewport = async (locator: import('@playwright/test').Locator) => {
+      const box = await locator.boundingBox();
+      expect(box).not.toBeNull();
+      if (!box) return;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(1281);
+      expect(box.y + box.height).toBeLessThanOrEqual(801);
+    };
+
+    await expectInsideViewport(summary);
+    await summary.focus();
+    await expectInsideViewport(summary);
+
+    await summary.click();
+    const panel = page.getByRole('navigation', { name: 'Índice del álbum' });
+    await expect(panel).toBeVisible();
+    await expectInsideViewport(summary);
+    await expectInsideViewport(panel);
+
+    const panelBox = await panel.boundingBox();
+    expect(panelBox, current.route).not.toBeNull();
+    if (panelBox) {
+      if (current.side === 'right') {
+        expect(panelBox.x + panelBox.width, current.route).toBeLessThanOrEqual(objectRight + 2);
+      } else {
+        expect(panelBox.x, current.route).toBeGreaterThanOrEqual(objectBox.x - 2);
+      }
+    }
+
+    const horizontalOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(horizontalOverflow, current.route).toBeLessThanOrEqual(1);
+  }
 });
 
 test('desktop corner controls keep semantic links but hide permanent arrows and copy', async ({ page }) => {
@@ -821,6 +860,16 @@ test('flexible-cover renderer is opaque and bidirectional at both ends with fort
     await page.mouse.move(cancelX, startY - 24, { steps: 7 });
     await expect(renderer).toHaveClass(/is-active/);
     await expect(renderer.locator(`[data-cover-page="${current.cover}"]`)).toHaveCSS('opacity', '1');
+
+    const spatialProgress = Number(await renderer.getAttribute('data-cover-spatial-progress'));
+    expect(spatialProgress, current.route).toBeGreaterThan(0.18);
+    expect(spatialProgress, current.route).toBeLessThan(0.32);
+
+    const spatialTranslate = await renderer.evaluate(
+      (element) => getComputedStyle(element).translate,
+    );
+    expect(spatialTranslate, current.route).not.toBe('none');
+
     await page.mouse.up();
     expect(new URL(page.url()).pathname).toBe(current.route);
     await expect(page.locator(`[data-cover-turn="${current.mode}"]`)).toHaveCount(0, { timeout: 1500 });

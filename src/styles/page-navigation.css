@@ -87,16 +87,6 @@
       width: 50%;
     }
 
-    .album-object.is-front-cover-object {
-      margin-inline-start: 50%;
-      margin-inline-end: 0;
-    }
-
-    .album-object.is-back-cover-object {
-      margin-inline-start: 0;
-      margin-inline-end: 50%;
-    }
-
     .page-navigation {
       position: absolute;
       inset: 0;
