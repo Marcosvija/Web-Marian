@@ -62,7 +62,11 @@
   background: rgb(88 56 47 / 0.06);
 }
 
-@media (min-width: 96rem) {
+@media (min-width: 64rem) {
+  .site-shell {
+    padding-inline: 4rem;
+  }
+
   .page-navigation {
     position: fixed;
     inset: 0;
@@ -86,6 +90,37 @@
       var(--paper-raised);
     box-shadow: 0 0.9rem 2rem rgb(42 34 28 / 0.13);
     pointer-events: auto;
+  }
+
+  .page-navigation-previous {
+    inset-inline-start: 0.25rem;
+    border-inline-start-width: 0.35rem;
+    border-radius: 0 0.25rem 0.25rem 0;
+  }
+
+  .page-navigation-next {
+    inset-inline-end: 0.25rem;
+    flex-direction: row-reverse;
+    border-inline-end-width: 0.35rem;
+    border-radius: 0.25rem 0 0 0.25rem;
+  }
+
+  .page-navigation-control .page-navigation-copy {
+    width: 0;
+    opacity: 0;
+  }
+
+  .bookmark-index {
+    inset-block: 68% auto;
+  }
+}
+
+@media (min-width: 96rem) {
+  .site-shell {
+    padding-inline: 1rem;
+  }
+
+  .page-navigation-control {
     transition:
       width 160ms ease,
       background-color 160ms ease,
@@ -93,21 +128,18 @@
   }
 
   .page-navigation-previous {
-    inset-inline-end: calc(50vw + 44rem);
-    border-inline-end-width: 0.35rem;
+    inset-inline: auto calc(50vw + 44rem);
+    border-inline-width: 1px 0.35rem;
     border-radius: 0.25rem 0 0 0.25rem;
   }
 
   .page-navigation-next {
-    inset-inline-start: calc(50vw + 44rem);
-    flex-direction: row-reverse;
-    border-inline-start-width: 0.35rem;
+    inset-inline: calc(50vw + 44rem) auto;
+    border-inline-width: 0.35rem 1px;
     border-radius: 0 0.25rem 0.25rem 0;
   }
 
   .page-navigation-control .page-navigation-copy {
-    width: 0;
-    opacity: 0;
     transition:
       width 160ms ease,
       opacity 120ms ease;
@@ -134,10 +166,6 @@
   .page-navigation-next:hover,
   .page-navigation-next:focus-visible {
     justify-content: flex-end;
-  }
-
-  .bookmark-index {
-    inset-block: 68% auto;
   }
 }
 
