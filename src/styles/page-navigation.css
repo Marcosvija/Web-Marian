@@ -1,0 +1,149 @@
+.album-frame {
+  position: relative;
+}
+
+.page-navigation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  width: 100%;
+  margin-block-start: 1rem;
+}
+
+.page-navigation-control {
+  display: flex;
+  min-width: 0;
+  min-height: 3.5rem;
+  padding: 0.75rem 1rem;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid rgb(71 60 51 / 0.22);
+  border-radius: 0.2rem;
+  background: var(--paper-raised);
+  box-shadow: 0 0.5rem 1.5rem rgb(42 34 28 / 0.08);
+  text-decoration: none;
+}
+
+.page-navigation-previous {
+  justify-content: flex-start;
+}
+
+.page-navigation-next {
+  justify-content: flex-end;
+  text-align: end;
+}
+
+.page-navigation-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.page-navigation-copy > :last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-navigation-kicker {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.page-navigation-arrow {
+  flex: 0 0 auto;
+  font-size: 1.25rem;
+}
+
+.page-navigation-control:hover {
+  background: rgb(88 56 47 / 0.06);
+}
+
+@media (min-width: 64rem) {
+  .page-navigation {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: block;
+    margin: 0;
+    pointer-events: none;
+  }
+
+  .page-navigation-control {
+    position: absolute;
+    inset-block-start: 42%;
+    width: 3.5rem;
+    min-height: 10rem;
+    padding: 1rem 0.6rem;
+    overflow: hidden;
+    justify-content: center;
+    border-color: rgb(71 60 51 / 0.3);
+    background:
+      linear-gradient(90deg, rgb(88 56 47 / 0.04), transparent 45%),
+      var(--paper-raised);
+    box-shadow: 0 0.9rem 2rem rgb(42 34 28 / 0.13);
+    pointer-events: auto;
+    transition:
+      width 160ms ease,
+      background-color 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .page-navigation-previous {
+    inset-inline-start: -0.75rem;
+    border-inline-start-width: 0.35rem;
+    border-radius: 0 0.25rem 0.25rem 0;
+  }
+
+  .page-navigation-next {
+    inset-inline-end: -0.75rem;
+    flex-direction: row-reverse;
+    border-inline-end-width: 0.35rem;
+    border-radius: 0.25rem 0 0 0.25rem;
+  }
+
+  .page-navigation-control .page-navigation-copy {
+    width: 0;
+    opacity: 0;
+    transition:
+      width 160ms ease,
+      opacity 120ms ease;
+  }
+
+  .page-navigation-control:hover,
+  .page-navigation-control:focus-visible {
+    width: 11rem;
+    background: var(--paper-raised);
+    box-shadow: 0 1.1rem 2.75rem rgb(42 34 28 / 0.18);
+  }
+
+  .page-navigation-control:hover .page-navigation-copy,
+  .page-navigation-control:focus-visible .page-navigation-copy {
+    width: 7rem;
+    opacity: 1;
+  }
+
+  .page-navigation-previous:hover,
+  .page-navigation-previous:focus-visible {
+    justify-content: flex-start;
+  }
+
+  .page-navigation-next:hover,
+  .page-navigation-next:focus-visible {
+    justify-content: flex-end;
+  }
+
+  .bookmark-index {
+    inset-block: 68% auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-navigation-control,
+  .page-navigation-control .page-navigation-copy {
+    transition: none;
+  }
+}
