@@ -141,7 +141,10 @@ test('the bookmark is physically inserted laterally and includes both covers in 
     expect(objectBox, route).not.toBeNull();
     expect(restingBox, route).not.toBeNull();
     await expect(index).toHaveAttribute('data-bookmark-side', side);
-    await expect(tab).toHaveCSS('writing-mode', 'vertical-rl');
+    const label = tab.locator('.bookmark-ribbon-label');
+    await expect(label).toHaveText('Índice');
+    await expect(label).toHaveCSS('writing-mode', 'vertical-rl');
+    await expect(label).toHaveCSS('text-orientation', 'upright');
     await expect(tab).toHaveCSS('border-top-width', '0px');
 
     if (objectBox && restingBox) {
@@ -153,9 +156,15 @@ test('the bookmark is physically inserted laterally and includes both covers in 
       if (side === 'right') {
         expect(restingBox.x, route).toBeLessThan(objectRight);
         expect(tabRight, route).toBeGreaterThan(objectRight);
+        const inserted = objectRight - restingBox.x;
+        expect(inserted, route).toBeGreaterThan(8);
+        expect(inserted, route).toBeLessThan(22);
       } else {
         expect(restingBox.x, route).toBeLessThan(objectBox.x);
         expect(tabRight, route).toBeGreaterThan(objectBox.x);
+        const inserted = tabRight - objectBox.x;
+        expect(inserted, route).toBeGreaterThan(8);
+        expect(inserted, route).toBeLessThan(22);
       }
     }
 
@@ -717,7 +726,10 @@ test('desktop bookmark is a viewport-safe lateral ribbon that mirrors on the bac
     await expect(bookmark).toHaveAttribute('data-bookmark-viewport-ready', 'true');
     await expect(bookmark).toHaveAttribute('data-bookmark-side', current.side);
     await expect(summary).toBeVisible();
-    await expect(summary).toHaveCSS('writing-mode', 'vertical-rl');
+    const label = summary.locator('.bookmark-ribbon-label');
+    await expect(label).toHaveText('Índice');
+    await expect(label).toHaveCSS('writing-mode', 'vertical-rl');
+    await expect(label).toHaveCSS('text-orientation', 'upright');
 
     const objectBox = await object.boundingBox();
     const summaryBox = await summary.boundingBox();
@@ -730,9 +742,15 @@ test('desktop bookmark is a viewport-safe lateral ribbon that mirrors on the bac
     if (current.side === 'right') {
       expect(summaryBox.x, current.route).toBeLessThan(objectRight);
       expect(summaryRight, current.route).toBeGreaterThan(objectRight);
+      const inserted = objectRight - summaryBox.x;
+      expect(inserted, current.route).toBeGreaterThan(8);
+      expect(inserted, current.route).toBeLessThan(22);
     } else {
       expect(summaryBox.x, current.route).toBeLessThan(objectBox.x);
       expect(summaryRight, current.route).toBeGreaterThan(objectBox.x);
+      const inserted = summaryRight - objectBox.x;
+      expect(inserted, current.route).toBeGreaterThan(8);
+      expect(inserted, current.route).toBeLessThan(22);
     }
 
     const expectInsideViewport = async (locator: import('@playwright/test').Locator) => {
@@ -884,10 +902,28 @@ test('flexible-cover renderer is opaque and bidirectional at both ends with fort
     expect(spatialProgress, current.route).toBeGreaterThan(0.18);
     expect(spatialProgress, current.route).toBeLessThan(0.32);
 
-    const spatialTranslate = await renderer.evaluate(
-      (element) => getComputedStyle(element).translate,
-    );
-    expect(spatialTranslate, current.route).not.toBe('none');
+    const coverGeometry = await renderer.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        translate: style.translate,
+        clipPath: style.clipPath,
+        clipSide: (element as HTMLElement).dataset.coverClipSide,
+        clipLeft: parseFloat(style.getPropertyValue('--cover-scene-clip-left')) || 0,
+        clipRight: parseFloat(style.getPropertyValue('--cover-scene-clip-right')) || 0,
+      };
+    });
+    expect(coverGeometry.translate, current.route).not.toBe('none');
+    expect(coverGeometry.clipPath, current.route).not.toBe('none');
+
+    if (current.mode.includes('front')) {
+      expect(coverGeometry.clipSide, current.route).toBe('left');
+      expect(coverGeometry.clipLeft, current.route).toBeGreaterThan(physicalWidth * 0.15);
+      expect(coverGeometry.clipRight, current.route).toBeLessThan(1);
+    } else {
+      expect(coverGeometry.clipSide, current.route).toBe('right');
+      expect(coverGeometry.clipRight, current.route).toBeGreaterThan(physicalWidth * 0.15);
+      expect(coverGeometry.clipLeft, current.route).toBeLessThan(1);
+    }
 
     await page.mouse.up();
     expect(new URL(page.url()).pathname).toBe(current.route);

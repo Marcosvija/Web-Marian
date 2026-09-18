@@ -325,6 +325,10 @@
       pointer-events: none;
       touch-action: none;
       contain: layout paint;
+      clip-path: inset(
+        0 var(--cover-scene-clip-right, 0px)
+        0 var(--cover-scene-clip-left, 0px)
+      );
       translate: var(--cover-scene-shift, 0) 0;
     }
 

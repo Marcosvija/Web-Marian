@@ -629,10 +629,16 @@ const nextKicker =
     const shift = opening
       ? closedShift * (1 - clamped)
       : closedShift * clamped;
+    const closedness = opening ? 1 - clamped : clamped;
+    const clipSize = scene.pageWidth * closedness;
+    const front = scene.mode.includes('front');
 
     scene.visualProgress = clamped;
     scene.host.style.setProperty('--cover-scene-shift', `${shift}px`);
+    scene.host.style.setProperty('--cover-scene-clip-left', `${front ? clipSize : 0}px`);
+    scene.host.style.setProperty('--cover-scene-clip-right', `${front ? 0 : clipSize}px`);
     scene.host.dataset.coverSpatialProgress = clamped.toFixed(3);
+    scene.host.dataset.coverClipSide = front ? 'left' : 'right';
   };
 
   const coverProgressFromClientX = (scene: CoverScene, clientX: number) => {
