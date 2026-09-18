@@ -328,8 +328,9 @@ test('desktop album scales proportionally with the useful viewport without a fix
     expect(coverBox).not.toBeNull();
     expect(Math.abs((coverBox?.height ?? 0) - expectedHeight)).toBeLessThan(2);
     expect(Math.abs((coverBox?.width ?? 0) - expectedWidth / 2)).toBeLessThan(3);
+    // The closed front cover keeps its left spine on the same center axis as the open spread.
     expect(
-      Math.abs((coverBox?.x ?? 0) + (coverBox?.width ?? 0) / 2 - viewport.width / 2),
+      Math.abs((coverBox?.x ?? 0) - viewport.width / 2),
     ).toBeLessThan(4);
   }
 
