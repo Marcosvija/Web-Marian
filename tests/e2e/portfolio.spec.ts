@@ -134,13 +134,15 @@ test('the bookmark is physically inserted laterally and includes both covers in 
     const object = page.locator('[data-album-object]');
     const index = page.locator('[data-bookmark-index]');
     const tab = index.locator('summary');
-    const objectBox = await object.boundingBox();
-    const restingBox = await tab.boundingBox();
     const side = route === '/contraportada/' ? 'left' : 'right';
 
+    await expect(index).toHaveAttribute('data-bookmark-viewport-ready', 'true');
+    await expect(index).toHaveAttribute('data-bookmark-side', side);
+
+    const objectBox = await object.boundingBox();
+    const restingBox = await tab.boundingBox();
     expect(objectBox, route).not.toBeNull();
     expect(restingBox, route).not.toBeNull();
-    await expect(index).toHaveAttribute('data-bookmark-side', side);
     const label = tab.locator('.bookmark-ribbon-label');
     await expect(label).toHaveText('Índice');
     await expect(label).toHaveCSS('writing-mode', 'vertical-rl');

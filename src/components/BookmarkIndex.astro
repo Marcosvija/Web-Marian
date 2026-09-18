@@ -65,12 +65,16 @@ const activePath = normalizePath(currentPath);
     const panelMaxHeight = Math.max(160, viewportHeight - anchorTop - 10);
 
     const direction = leftSide ? -1 : 1;
+    const bookmarkBox = bookmark.getBoundingClientRect();
+    const anchorX = leftSide ? bookmarkBox.left : bookmarkBox.right;
+    const objectEdgeX = leftSide ? objectBox.left : objectBox.right;
+    const edgeCorrection = objectEdgeX - anchorX;
     const hoverPull = Math.min(6, remainingOutside);
     const openPull = Math.min(16, remainingOutside);
 
-    bookmark.style.setProperty('--bookmark-rest-x', `${direction * exposed}px`);
-    bookmark.style.setProperty('--bookmark-hover-x', `${direction * (exposed + hoverPull)}px`);
-    bookmark.style.setProperty('--bookmark-open-x', `${direction * (exposed + openPull)}px`);
+    bookmark.style.setProperty('--bookmark-rest-x', `${edgeCorrection + direction * exposed}px`);
+    bookmark.style.setProperty('--bookmark-hover-x', `${edgeCorrection + direction * (exposed + hoverPull)}px`);
+    bookmark.style.setProperty('--bookmark-open-x', `${edgeCorrection + direction * (exposed + openPull)}px`);
     bookmark.style.setProperty('--bookmark-panel-max-height', `${panelMaxHeight}px`);
     bookmark.dataset.bookmarkSide = leftSide ? 'left' : 'right';
     bookmark.dataset.bookmarkViewportReady = 'true';
