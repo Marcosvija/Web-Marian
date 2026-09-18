@@ -465,9 +465,9 @@ h1 {
 @media (min-height: 38rem) {
   @container album (min-width: 56rem) {
     .bookmark-index {
-      --bookmark-exposed: 1.35rem;
-      --bookmark-hover-pull: 0.3rem;
-      --bookmark-open-pull: 0.75rem;
+      --bookmark-rest-x: 1.35rem;
+      --bookmark-hover-x: 1.65rem;
+      --bookmark-open-x: 2.1rem;
       --bookmark-panel-max-height: 32rem;
       position: absolute;
       inset-block-start: 40%;
@@ -530,7 +530,7 @@ h1 {
     .bookmark-index summary {
       position: absolute;
       inset-block-start: 0;
-      inset-inline-end: calc(0px - var(--bookmark-exposed));
+      inset-inline-end: 0;
       z-index: 1;
       display: grid;
       width: 2.35rem;
@@ -554,13 +554,14 @@ h1 {
       text-orientation: mixed;
       clip-path: polygon(0 0, 100% 0, 100% 88%, 50% 100%, 0 88%);
       pointer-events: auto;
+      translate: var(--bookmark-rest-x) 0;
       transition:
         translate 180ms cubic-bezier(0.22, 1, 0.36, 1),
         filter 180ms ease;
     }
 
     .album-object.is-back-cover-object .bookmark-index summary {
-      inset-inline: calc(0px - var(--bookmark-exposed)) auto;
+      inset-inline: 0 auto;
       border-radius: 0.18rem 0.12rem 0.12rem 0.18rem;
       box-shadow:
         -0.2rem 0.18rem 0.42rem rgb(42 34 28 / 0.2),
@@ -570,21 +571,12 @@ h1 {
 
     .bookmark-index summary:hover,
     .bookmark-index summary:focus-visible {
-      translate: var(--bookmark-hover-pull) 0;
+      translate: var(--bookmark-hover-x) 0;
       filter: brightness(1.025);
     }
 
-    .album-object.is-back-cover-object .bookmark-index summary:hover,
-    .album-object.is-back-cover-object .bookmark-index summary:focus-visible {
-      translate: calc(0px - var(--bookmark-hover-pull)) 0;
-    }
-
     .bookmark-index[open] summary {
-      translate: var(--bookmark-open-pull) 0;
-    }
-
-    .album-object.is-back-cover-object .bookmark-index[open] summary {
-      translate: calc(0px - var(--bookmark-open-pull)) 0;
+      translate: var(--bookmark-open-x) 0;
     }
 
     .bookmark-index summary:focus-visible {
