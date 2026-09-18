@@ -35,6 +35,10 @@
   margin-block-start: 0;
 }
 
+.album-page-left > .section-heading:last-child {
+  margin-block-end: 0;
+}
+
 .album-page-right:has(> *) {
   margin-block-start: 1rem;
 }
