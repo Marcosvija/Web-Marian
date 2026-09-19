@@ -1,6 +1,7 @@
 ---
 import BookmarkIndex from '../components/BookmarkIndex.astro';
-import { getAlbumNavigation } from '../lib/navigation';
+import PageNavigation from '../components/PageNavigation.astro';
+import { getAlbumMap } from '../lib/navigation';
 import BaseLayout from './BaseLayout.astro';
 
 interface Props {
@@ -9,22 +10,40 @@ interface Props {
 }
 
 const { title, description } = Astro.props;
-const navigation = await getAlbumNavigation();
+const albumMap = await getAlbumMap();
+const currentPath = Astro.url.pathname;
+const isFrontCover = currentPath === '/';
+const isBackCover = currentPath === '/contraportada/';
+const isClosedCover = isFrontCover || isBackCover;
 ---
 
 <BaseLayout title={title} description={description}>
   <div class="site-shell">
-    <header class="site-header">
-      <a class="site-home" href="/" aria-label="Marian, inicio">
-        <span aria-hidden="true">M</span>
-        <span>Marian</span>
-      </a>
-    </header>
-
-    <BookmarkIndex items={navigation} currentPath={Astro.url.pathname} />
-
     <main id="contenido" class="album-frame" tabindex="-1">
-      <slot />
+      <div class="album-stage">
+        <div
+          class:list={[
+            'album-object',
+            {
+              'is-closed-cover': isClosedCover,
+              'is-front-cover-object': isFrontCover,
+              'is-back-cover-object': isBackCover,
+            },
+          ]}
+          data-album-object
+        >
+          <header class="site-header">
+            <a class="site-home" href="/" aria-label="Marian, inicio">
+              <span aria-hidden="true">M</span>
+              <span>Marian</span>
+            </a>
+          </header>
+
+          <BookmarkIndex items={albumMap} currentPath={currentPath} />
+          <slot />
+          <PageNavigation pages={albumMap} currentPath={currentPath} />
+        </div>
+      </div>
     </main>
   </div>
 </BaseLayout>

@@ -9,7 +9,7 @@ interface Props {
 const { photos } = Astro.props;
 ---
 
-<div class="photo-grid" aria-label="Selección fotográfica">
+<div class="photo-grid" aria-label="Selección fotográfica" data-photo-count={photos.length}>
   {photos.map((photo, index) => (
     <figure id={`foto-${photo.id}`} class:list={['photo-card', { 'is-featured': index === 0 }]}>
       {photo.decorative ? (
@@ -27,7 +27,7 @@ const { photos } = Astro.props;
             alt={photo.alt}
             loading={index === 0 ? 'eager' : 'lazy'}
             fetchpriority={index === 0 ? 'high' : 'auto'}
-            sizes={index === 0 ? '(min-width: 56rem) 60vw, 100vw' : '(min-width: 56rem) 30vw, 100vw'}
+            sizes="(min-width: 56rem) 24vw, 100vw"
           />
         </a>
       )}

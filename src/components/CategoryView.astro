@@ -1,50 +1,50 @@
 ---
 import type { CategoryEntry } from '../lib/categories';
+import { getCategoryPhotoLocations, getCategorySpreads } from '../lib/category-layout';
 import PhotoGrid from './PhotoGrid.astro';
 import PhotoViewer from './PhotoViewer.astro';
 
 interface Props {
   category: CategoryEntry;
-  previous?: CategoryEntry | undefined;
-  next?: CategoryEntry | undefined;
+  spreadIndex?: number;
 }
 
-const { category, previous, next } = Astro.props;
+const { category, spreadIndex = 0 } = Astro.props;
 const { title, description, photos } = category.data;
+const spreads = getCategorySpreads(photos);
+const spread = spreads[spreadIndex] ?? spreads[0];
+if (!spread) throw new Error('Category spread unavailable');
 ---
 
-<article class="category-view sheet" aria-labelledby="category-title">
-  <header class="section-heading category-heading">
-    <p class="eyebrow">Categoría fotográfica</p>
-    <h1 id="category-title">{title}</h1>
-    {description && <p class="category-description">{description}</p>}
-  </header>
+<article
+  class="category-view sheet album-spread"
+  aria-labelledby="category-title"
+  data-album-spread
+  data-category-spread={spread.index + 1}
+  data-category-spread-count={spreads.length}
+>
+  <div class="album-page album-page-left">
+    <header class="section-heading category-heading">
+      <p class="eyebrow">Categoría fotográfica</p>
+      <h1 id="category-title">{title}</h1>
+      {spread.index === 0 && description && <p class="category-description">{description}</p>}
+      {spreads.length > 1 && (
+        <p class="category-spread-count" aria-label={`Pliego ${spread.index + 1} de ${spreads.length}`}>
+          {spread.index + 1} / {spreads.length}
+        </p>
+      )}
+    </header>
 
-  {photos.length > 0 ? (
-    <>
-      <PhotoGrid photos={photos} />
-      <PhotoViewer />
-    </>
-  ) : (
-    <p class="empty-state" role="status">Esta categoría todavía no contiene fotografías.</p>
-  )}
+    {spread.left.length > 0 ? (
+      <PhotoGrid photos={spread.left} />
+    ) : photos.length === 0 ? (
+      <p class="empty-state" role="status">Esta categoría todavía no contiene fotografías.</p>
+    ) : null}
+  </div>
 
-  <nav class="category-pagination" aria-label="Recorrido entre categorías">
-    {previous ? (
-      <a class="category-pagination-previous" rel="prev" href={`/portfolio/${previous.data.slug}/`}>
-        <span aria-hidden="true">←</span> {previous.data.title}
-      </a>
-    ) : <span class="category-pagination-placeholder" aria-hidden="true"></span>}
-    <a class="category-pagination-index" href="/portfolio/">Índice</a>
-    {next ? (
-      <a class="category-pagination-next" rel="next" href={`/portfolio/${next.data.slug}/`}>
-        <span class="category-pagination-label">Siguiente categoría</span>
-        <span>{next.data.title} <span aria-hidden="true">→</span></span>
-      </a>
-    ) : (
-      <a class="category-pagination-contact" href="/contacto/">
-        Contacto <span aria-hidden="true">→</span>
-      </a>
-    )}
-  </nav>
+  <div class="album-page album-page-right">
+    {spread.right.length > 0 && <PhotoGrid photos={spread.right} />}
+  </div>
+
+  {photos.length > 0 && <PhotoViewer photos={getCategoryPhotoLocations(category.data.slug, photos)} />}
 </article>

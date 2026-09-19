@@ -1,0 +1,1403 @@
+---
+import type { AlbumPage } from '../lib/navigation';
+import CoverFold from './CoverFold.astro';
+
+interface Props {
+  pages: AlbumPage[];
+  currentPath: string;
+}
+
+const { pages, currentPath } = Astro.props;
+const currentIndex = pages.findIndex(({ href }) => href === currentPath);
+const previous = currentIndex > 0 ? pages[currentIndex - 1] : undefined;
+const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[currentIndex + 1] : undefined;
+const previousLabel = previous?.navigationLabel ?? previous?.label ?? '';
+const nextLabel = next?.navigationLabel ?? next?.label ?? '';
+
+const closesFrontCover = currentPath === '/sobre-mi/' && previous?.href === '/';
+const previousAria =
+  currentPath === '/contraportada/' ? 'Reabrir álbum' :
+  closesFrontCover ? 'Cerrar álbum' :
+  previous ? `Página anterior: ${previousLabel}` : '';
+const nextAria =
+  currentPath === '/' ? 'Abrir el álbum' :
+  currentPath === '/contacto/' && next?.href === '/contraportada/' ? 'Cerrar álbum' :
+  next ? `Página siguiente: ${nextLabel}` : '';
+
+const previousKicker =
+  currentPath === '/contraportada/' ? 'Reabrir álbum' :
+  closesFrontCover ? 'Cerrar álbum' :
+  'Página anterior';
+const nextKicker =
+  currentPath === '/' ? 'Abrir álbum' :
+  currentPath === '/contacto/' && next?.href === '/contraportada/' ? 'Cerrar álbum' :
+  'Página siguiente';
+---
+
+{(previous || next) && (
+  <nav class="page-navigation" aria-label="Recorrido entre páginas del álbum" data-page-navigation>
+    {previous ? (
+      <a
+        class="page-navigation-control page-navigation-previous"
+        href={previous.href}
+        rel="prev"
+        aria-label={previousAria}
+        data-page-direction="previous"
+        data-page-destination={previousLabel}
+      >
+        {currentPath === '/contraportada/' && <CoverFold side="left" />}
+        <span class="page-navigation-arrow" aria-hidden="true">←</span>
+        <span class="page-navigation-copy">
+          <span class="page-navigation-kicker">{previousKicker}</span>
+          <span>{previousLabel}</span>
+        </span>
+      </a>
+    ) : <span class="page-navigation-spacer" aria-hidden="true"></span>}
+
+    {next ? (
+      <a
+        class="page-navigation-control page-navigation-next"
+        href={next.href}
+        rel="next"
+        aria-label={nextAria}
+        data-page-direction="next"
+        data-page-destination={nextLabel}
+      >
+        {currentPath === '/' && <CoverFold side="right" />}
+        <span class="page-navigation-copy">
+          <span class="page-navigation-kicker">{nextKicker}</span>
+          <span>{nextLabel}</span>
+        </span>
+        <span class="page-navigation-arrow" aria-hidden="true">→</span>
+      </a>
+    ) : <span class="page-navigation-spacer" aria-hidden="true"></span>}
+  </nav>
+)}
+
+<script>
+  import { PageFlip } from 'page-flip';
+
+  type TurnDirection = 'previous' | 'next';
+  type CoverMode = 'open-front' | 'close-front' | 'close-back' | 'open-back';
+
+  interface FlexibleRenderer {
+    flip: PageFlip;
+    host: HTMLElement;
+    link: HTMLAnchorElement;
+    direction: TurnDirection;
+    started: boolean;
+    settling: boolean;
+    lastPoint: { x: number; y: number } | null;
+  }
+
+  interface CoverScene {
+    flip: PageFlip;
+    host: HTMLElement;
+    mode: CoverMode;
+    link: HTMLAnchorElement;
+    direction: TurnDirection;
+    startPage: number;
+    endPage: number;
+    pageWidth: number;
+    started: boolean;
+    settling: boolean;
+    lastPoint: { x: number; y: number } | null;
+    dragStartClientX: number | null;
+    visualProgress: number;
+    closingSurface: HTMLElement | null;
+    homeOffset: { x: number; y: number };
+    reveal: Promise<void> | null;
+    foldInset: number;
+  }
+
+  const focusKey = 'album-page-navigation-focus';
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const preparedRenderers = new Map<HTMLAnchorElement, Promise<FlexibleRenderer | null>>();
+  const preparedCoverScenes = new Map<HTMLAnchorElement, Promise<CoverScene | null>>();
+  const liveRenderers = new Set<FlexibleRenderer | CoverScene>();
+  let geometryRevision = 0;
+  let automaticTurnInFlight = false;
+
+  const rememberFocus = (origin: 'keyboard' | 'pointer') => {
+    try { sessionStorage.setItem(focusKey, origin); } catch { /* Storage is optional. */ }
+  };
+
+  const isPlainActivation = (event: MouseEvent) =>
+    event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+
+  const focusDestination = () => {
+    let focusOrigin: string | null = null;
+    try {
+      focusOrigin = sessionStorage.getItem(focusKey);
+      sessionStorage.removeItem(focusKey);
+    } catch { return; }
+    if (!focusOrigin) return;
+
+    const main = document.querySelector<HTMLElement>('#contenido');
+    if (!main) return;
+
+    main.dataset.pageFocusOrigin = focusOrigin;
+    main.focus({ preventScroll: true });
+    main.addEventListener('blur', () => {
+      delete main.dataset.pageFocusOrigin;
+    }, { once: true });
+  };
+
+  const getSpread = () => document.querySelector<HTMLElement>('[data-album-spread]');
+  const getStage = () => document.querySelector<HTMLElement>('.album-stage');
+  const getObject = () => document.querySelector<HTMLElement>('[data-album-object]');
+  const getNavigation = () => document.querySelector<HTMLElement>('[data-page-navigation]');
+
+  const resetBookmarkScene = () => {
+    const bookmark = getObject()?.querySelector<HTMLElement>('[data-bookmark-index]');
+    if (!bookmark) return;
+    delete bookmark.dataset.bookmarkTurning;
+    bookmark.style.removeProperty('--bookmark-scene-x');
+    bookmark.dataset.bookmarkSide = window.location.pathname === '/contraportada/' ? 'left' : 'right';
+  };
+
+  const composePreviewIndex = (spread: HTMLElement) => {
+    if (!spread.matches('[data-album-map-view="index"]')) return true;
+    const stage = getStage();
+    if (!stage) return false;
+    // Match the destination's real container and typography before cloning pages.
+    spread.style.cssText = 'position:absolute;inset:0;visibility:hidden;pointer-events:none';
+    spread.setAttribute('inert', '');
+    spread.setAttribute('aria-hidden', 'true');
+    stage.append(spread);
+    document.dispatchEvent(new CustomEvent('album:compose-index', { detail: spread }));
+    const fits = spread.dataset.indexLayout === 'spread';
+    spread.remove();
+    spread.removeAttribute('style');
+    return fits;
+  };
+
+  const physicalModeAvailable = () => {
+    if (reducedMotion.matches) return false;
+    const navigation = getNavigation();
+    return navigation ? getComputedStyle(navigation).position === 'absolute' : false;
+  };
+
+  const getActivePage = (direction: TurnDirection) => {
+    const spread = getSpread();
+    if (!spread) return null;
+
+    return spread.querySelector<HTMLElement>(
+      direction === 'next'
+        ? ':scope > .album-page-right'
+        : ':scope > .album-page-left',
+    );
+  };
+
+  const physicalTurnAvailable = () => {
+    if (!physicalModeAvailable()) return false;
+    const spread = getSpread();
+    const page = spread?.querySelector<HTMLElement>(':scope > .album-page');
+    if (!spread || !page) return false;
+
+    const spreadWidth = spread.getBoundingClientRect().width;
+    const pageWidth = page.getBoundingClientRect().width;
+    return spreadWidth > 0 && pageWidth > 0 && pageWidth < spreadWidth * 0.75;
+  };
+
+  const sanitizeVisualClone = (element: HTMLElement) => {
+    element.removeAttribute('id');
+    element.querySelectorAll<HTMLElement>('[id]').forEach((node) => node.removeAttribute('id'));
+    element.querySelectorAll<HTMLElement>('a, button, input, select, textarea, [tabindex]').forEach(
+      (node) => node.setAttribute('tabindex', '-1'),
+    );
+    element.querySelectorAll('dialog').forEach((dialog) => dialog.remove());
+    element.querySelectorAll<HTMLImageElement>('img').forEach((image) => {
+      image.loading = 'eager';
+      image.decoding = 'async';
+    });
+    return element;
+  };
+
+  const waitForVisualAssets = async (root: HTMLElement) => {
+    const images = Array.from(root.querySelectorAll<HTMLImageElement>('img'));
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.all([
+          ...images.map(async (image) => {
+            if (image.complete && image.naturalWidth > 0) return;
+            await image.decode();
+          }),
+          document.fonts.ready,
+        ]),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('Preview assets timed out')), 2500);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+  };
+
+  const getViewContext = (source: HTMLElement) => {
+    const spread = source.closest<HTMLElement>('[data-album-spread]');
+    return ['about-view', 'contact-view', 'portfolio-index', 'category-view']
+      .filter((className) => spread?.classList.contains(className));
+  };
+
+  const createCurlPage = (source: HTMLElement, label: string) => {
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('album-curl-page', ...getViewContext(source));
+    wrapper.dataset.curlPageWrapper = label;
+    wrapper.setAttribute('aria-hidden', 'true');
+    wrapper.setAttribute('inert', '');
+
+    const surface = sanitizeVisualClone(source.cloneNode(true) as HTMLElement);
+    surface.dataset.curlPage = label;
+    wrapper.append(surface);
+    return wrapper;
+  };
+
+  const createCoverSpreadPage = (source: HTMLElement, label: string) => {
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('album-cover-page', ...getViewContext(source));
+    wrapper.dataset.coverPageWrapper = label;
+    wrapper.setAttribute('aria-hidden', 'true');
+    wrapper.setAttribute('inert', '');
+
+    const surface = sanitizeVisualClone(source.cloneNode(true) as HTMLElement);
+    surface.dataset.coverPage = label;
+    wrapper.append(surface);
+    return wrapper;
+  };
+
+  const createFlexibleCoverPage = (source: HTMLElement, label: string, fold: SVGElement | null) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'album-cover-page album-cover-flex-page';
+    wrapper.dataset.coverPageWrapper = label;
+    wrapper.dataset.density = 'soft';
+    wrapper.setAttribute('aria-hidden', 'true');
+    wrapper.setAttribute('inert', '');
+
+    const surface = sanitizeVisualClone(source.cloneNode(true) as HTMLElement);
+    surface.dataset.coverPage = label;
+    wrapper.append(surface);
+    if (fold) {
+      // This is part of the cover face: page-flip transforms and clips it with
+      // that face, including the last closing frame. No second interactive link.
+      const corner = fold.cloneNode(true) as SVGElement;
+      corner.querySelectorAll('[id]').forEach(element => {
+        const id = element.id;
+        element.id = `scene-${id}`;
+        corner.querySelectorAll('[fill], [stroke]').forEach(path => {
+          for (const attribute of ['fill', 'stroke']) {
+            if (path.getAttribute(attribute) === `url(#${id})`) path.setAttribute(attribute, `url(#scene-${id})`);
+          }
+        });
+      });
+      wrapper.append(corner);
+    }
+    return wrapper;
+  };
+
+  const createCoverBlankPage = (label: string) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'album-cover-page album-cover-blank-page';
+    wrapper.dataset.coverPageWrapper = label;
+    wrapper.dataset.density = 'soft';
+    wrapper.setAttribute('aria-hidden', 'true');
+    wrapper.setAttribute('inert', '');
+    return wrapper;
+  };
+
+  const prepareFlexibleRenderer = (
+    link: HTMLAnchorElement,
+    direction: TurnDirection,
+  ): Promise<FlexibleRenderer | null> => {
+    const cached = preparedRenderers.get(link);
+    if (cached) return cached;
+
+    const task = (async () => {
+      const revision = geometryRevision;
+      if (!physicalTurnAvailable()) return null;
+
+      const spread = getSpread();
+      const currentLeft = spread?.querySelector<HTMLElement>(':scope > .album-page-left');
+      const currentRight = spread?.querySelector<HTMLElement>(':scope > .album-page-right');
+      if (!spread || !currentLeft || !currentRight) return null;
+
+      let pendingHost: HTMLElement | undefined;
+      let pendingFlip: PageFlip | undefined;
+      try {
+        const response = await fetch(link.href, {
+          credentials: 'same-origin',
+          headers: { 'X-Album-Turn-Preview': '1' },
+          signal: AbortSignal.timeout(2500),
+        });
+        if (!response.ok) return null;
+
+        const html = await response.text();
+        const parsed = new DOMParser().parseFromString(html, 'text/html');
+        const destinationSpread = parsed.querySelector<HTMLElement>('[data-album-spread]');
+        if (destinationSpread && !composePreviewIndex(destinationSpread)) return null;
+        const destinationLeft =
+          destinationSpread?.querySelector<HTMLElement>(':scope > .album-page-left');
+        const destinationRight =
+          destinationSpread?.querySelector<HTMLElement>(':scope > .album-page-right');
+        if (!destinationSpread || !destinationLeft || !destinationRight) return null;
+
+        const pageBox = currentLeft.getBoundingClientRect();
+        if (pageBox.width <= 0 || pageBox.height <= 0) return null;
+
+        const host = document.createElement('div');
+        pendingHost = host;
+        host.className = 'album-curl-renderer';
+        host.dataset.curlRenderer = direction;
+        host.setAttribute('aria-hidden', 'true');
+        host.setAttribute('inert', '');
+
+        const currentPages = [
+          createCurlPage(currentLeft, 'current-left'),
+          createCurlPage(currentRight, 'current-right'),
+        ];
+        const destinationPages = [
+          createCurlPage(destinationLeft, 'destination-left'),
+          createCurlPage(destinationRight, 'destination-right'),
+        ];
+        const pages =
+          direction === 'next'
+            ? [...currentPages, ...destinationPages]
+            : [...destinationPages, ...currentPages];
+
+        host.append(...pages);
+        spread.prepend(host);
+
+        const flip = new PageFlip(host, {
+          width: pageBox.width,
+          height: pageBox.height,
+          size: 'fixed',
+          startPage: direction === 'next' ? 0 : 2,
+          drawShadow: true,
+          flippingTime: 360,
+          usePortrait: false,
+          startZIndex: 20,
+          autoSize: false,
+          maxShadowOpacity: 0.42,
+          showCover: false,
+          mobileScrollSupport: true,
+          clickEventForward: false,
+          useMouseEvents: false,
+          showPageCorners: false,
+          disableFlipByClick: true,
+        });
+        pendingFlip = flip;
+
+        flip.loadFromHTML(pages);
+        await waitForVisualAssets(host);
+        if (revision !== geometryRevision || !physicalTurnAvailable()) {
+          flip.destroy();
+          return null;
+        }
+
+        const renderer: FlexibleRenderer = {
+          flip,
+          host,
+          link,
+          direction,
+          started: false,
+          settling: false,
+          lastPoint: null,
+        };
+        host.dataset.curlReady = 'true';
+        liveRenderers.add(renderer);
+        return renderer;
+      } catch {
+        try { pendingFlip?.destroy(); } catch { /* The fallback link remains usable. */ }
+        pendingHost?.remove();
+        return null;
+      }
+    })();
+
+    preparedRenderers.set(link, task);
+    void task.then((renderer) => {
+      if (!renderer && preparedRenderers.get(link) === task) preparedRenderers.delete(link);
+    });
+    return task;
+  };
+
+  const rendererPoint = (
+    renderer: FlexibleRenderer,
+    clientX: number,
+    clientY: number,
+  ) => {
+    const dist = renderer.flip.getUI().getDistElement();
+    const rect = dist.getBoundingClientRect();
+
+    return {
+      x: Math.max(1, Math.min(clientX - rect.left, rect.width - 1)),
+      y: Math.max(1, Math.min(clientY - rect.top, rect.height - 1)),
+    };
+  };
+
+  const beginFlexibleTurn = (
+    renderer: FlexibleRenderer,
+    startClientX: number,
+    startClientY: number,
+    currentClientX: number,
+    currentClientY: number,
+  ) => {
+    if (renderer.started || renderer.settling || !renderer.host.isConnected) return;
+
+    const spread = getSpread();
+    if (!spread) return;
+
+    spread.classList.add('is-flex-turning');
+    spread.dataset.turnDirection = renderer.direction;
+    renderer.host.dataset.curlActive = 'true';
+
+    const start = rendererPoint(renderer, startClientX, startClientY);
+    const current = rendererPoint(renderer, currentClientX, currentClientY);
+    renderer.flip.startUserTouch(start);
+    renderer.flip.userMove(current, false);
+    renderer.lastPoint = current;
+    renderer.started = true;
+    document.documentElement.dataset.albumCurlActive = renderer.direction;
+  };
+
+  const moveFlexibleTurn = (
+    renderer: FlexibleRenderer,
+    clientX: number,
+    clientY: number,
+  ) => {
+    if (!renderer.started || renderer.settling || !renderer.host.isConnected) return;
+
+    const point = rendererPoint(renderer, clientX, clientY);
+    renderer.flip.userMove(point, false);
+    renderer.lastPoint = point;
+    renderer.host.style.setProperty('--curl-pointer-x', String(point.x));
+    renderer.host.style.setProperty('--curl-pointer-y', String(point.y));
+  };
+
+  const destroyRenderer = (renderer: FlexibleRenderer) => {
+    const spread = getSpread();
+    spread?.classList.remove('is-flex-turning');
+    if (spread) {
+      delete spread.dataset.turnDirection;
+      delete spread.dataset.turnCommitted;
+    }
+
+    delete document.documentElement.dataset.albumCurlActive;
+    preparedRenderers.delete(renderer.link);
+    liveRenderers.delete(renderer);
+
+    try {
+      renderer.flip.destroy();
+    } catch {
+      renderer.host.remove();
+    }
+  };
+
+  const animateRendererTo = async (
+    renderer: FlexibleRenderer,
+    target: { x: number; y: number },
+    duration: number,
+  ) => {
+    const start = renderer.lastPoint ?? target;
+    const startedAt = performance.now();
+
+    await new Promise<void>((resolve) => {
+      const frame = (now: number) => {
+        if (!renderer.host.isConnected) { resolve(); return; }
+        const elapsed = Math.min(1, (now - startedAt) / Math.max(duration, 1));
+        const eased = 1 - Math.pow(1 - elapsed, 3);
+        const point = {
+          x: start.x + (target.x - start.x) * eased,
+          y: start.y + (target.y - start.y) * eased,
+        };
+
+        renderer.flip.userMove(point, false);
+        renderer.lastPoint = point;
+
+        if (elapsed < 1) requestAnimationFrame(frame);
+        else resolve();
+      };
+
+      requestAnimationFrame(frame);
+    });
+  };
+
+  const settleFlexibleTurn = async (
+    renderer: FlexibleRenderer,
+    progress: number,
+    commit: boolean,
+    origin: 'keyboard' | 'pointer' = 'pointer',
+  ) => {
+    if (!renderer.host.isConnected || !renderer.started || renderer.settling) return false;
+    renderer.settling = true;
+
+    const dist = renderer.flip.getUI().getDistElement();
+    const rect = dist.getBoundingClientRect();
+    const clamped = Math.max(0, Math.min(progress, 1));
+    const target = commit
+      ? {
+          x: renderer.direction === 'next' ? 1 : rect.width - 1,
+          y: rect.height - 1,
+        }
+      : {
+          x: renderer.direction === 'next' ? rect.width - 1 : 1,
+          y: rect.height - 1,
+        };
+    const duration = commit
+      ? Math.round(180 + (1 - clamped) * 240)
+      : Math.round(160 + clamped * 120);
+
+    await animateRendererTo(renderer, target, duration);
+    if (!renderer.host.isConnected) return false;
+
+    if (!commit) {
+      destroyRenderer(renderer);
+      return false;
+    }
+
+    const spread = getSpread();
+    spread?.setAttribute('data-turn-committed', 'true');
+    renderer.host.dataset.curlSettled = 'true';
+    renderer.flip.turnToPage(renderer.direction === 'next' ? 2 : 0);
+    rememberFocus(origin);
+    document.documentElement.dataset.albumTurnNavigation = 'committed';
+
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    window.location.assign(renderer.link.href);
+    return true;
+  };
+
+  const startAutomaticFlexibleTurn = (renderer: FlexibleRenderer) => {
+    const page = getActivePage(renderer.direction);
+    const box = page?.getBoundingClientRect();
+    if (!page || !box || box.width <= 0 || box.height <= 0) return null;
+
+    const cornerInset = 8;
+    const take = Math.min(16, Math.max(8, box.width * 0.025));
+    const startX = renderer.direction === 'next'
+      ? box.right - cornerInset
+      : box.left + cornerInset;
+    const startY = box.bottom - cornerInset;
+    const currentX = renderer.direction === 'next'
+      ? startX - take
+      : startX + take;
+    const currentY = startY - Math.min(8, take * 0.5);
+
+    beginFlexibleTurn(renderer, startX, startY, currentX, currentY);
+    if (!renderer.started) return null;
+    return Math.max(0.01, Math.min(take / box.width, 0.08));
+  };
+
+  const runAutomaticFlexibleTurn = async (
+    link: HTMLAnchorElement,
+    direction: TurnDirection,
+    origin: 'keyboard' | 'pointer',
+  ) => {
+    const fallback = () => {
+      automaticTurnInFlight = false;
+      delete document.documentElement.dataset.albumAutomaticTurn;
+      delete link.dataset.pageAutoPending;
+      navigateDirect(link, origin);
+    };
+
+    try {
+      const renderer = await prepareFlexibleRenderer(link, direction);
+      if (!renderer) {
+        fallback();
+        return;
+      }
+
+      const progress = startAutomaticFlexibleTurn(renderer);
+      if (progress === null) {
+        fallback();
+        return;
+      }
+
+      delete link.dataset.pageAutoPending;
+      const committed = await settleFlexibleTurn(renderer, progress, true, origin);
+      if (!committed && link.isConnected) fallback();
+    } catch {
+      fallback();
+    }
+  };
+
+  const getCoverMode = (link: HTMLAnchorElement): CoverMode | null => {
+    const path = window.location.pathname;
+    const destination = new URL(link.href).pathname;
+
+    if (path === '/' && destination === '/sobre-mi/') return 'open-front';
+    if (path === '/sobre-mi/' && destination === '/') return 'close-front';
+    if (path === '/contacto/' && destination === '/contraportada/') return 'close-back';
+    if (path === '/contraportada/' && destination === '/contacto/') return 'open-back';
+    return null;
+  };
+
+  const coverDirection = (mode: CoverMode): TurnDirection =>
+    mode === 'open-front' || mode === 'close-back' ? 'next' : 'previous';
+
+  const prepareCoverScene = (link: HTMLAnchorElement): Promise<CoverScene | null> => {
+    const cached = preparedCoverScenes.get(link);
+    if (cached) return cached;
+
+    const task = (async () => {
+      const revision = geometryRevision;
+      const mode = getCoverMode(link);
+      const stage = getStage();
+      const object = getObject();
+      if (!mode || !stage || !object || !physicalModeAvailable()) return null;
+
+      const currentSpread = object.querySelector<HTMLElement>('[data-album-spread]');
+      const currentCover = object.querySelector<HTMLElement>('[data-album-cover]');
+
+      let pendingHost: HTMLElement | undefined;
+      let pendingFlip: PageFlip | undefined;
+      try {
+        const response = await fetch(link.href, {
+          credentials: 'same-origin',
+          headers: { 'X-Album-Cover-Preview': '1' },
+          signal: AbortSignal.timeout(2500),
+        });
+        if (!response.ok) return null;
+
+        const html = await response.text();
+        const parsed = new DOMParser().parseFromString(html, 'text/html');
+        const destinationSpread = parsed.querySelector<HTMLElement>('[data-album-spread]');
+        const destinationCover = parsed.querySelector<HTMLElement>('[data-album-cover]');
+
+        const opening = mode === 'open-front' || mode === 'open-back';
+        const spread = opening ? destinationSpread : currentSpread;
+        const cover = opening ? currentCover : destinationCover;
+        const left = spread?.querySelector<HTMLElement>(':scope > .album-page-left');
+        const right = spread?.querySelector<HTMLElement>(':scope > .album-page-right');
+        if (!cover || !left || !right) return null;
+
+        const stageBox = stage.getBoundingClientRect();
+        const referenceHeight =
+          currentSpread?.getBoundingClientRect().height ??
+          currentCover?.getBoundingClientRect().height ??
+          stageBox.height;
+        const pageWidth = stageBox.width / 2;
+        if (pageWidth <= 0 || referenceHeight <= 0) return null;
+
+        // Measure the destination's real layout classes in this same container.
+        // No cloned header/anchor and no front/back direction assumption.
+        const destinationObject = parsed.querySelector<HTMLElement>('[data-album-object]');
+        if (!destinationObject) return null;
+        const measure = document.createElement('div');
+        measure.className = destinationObject.className;
+        measure.style.cssText = `position:absolute;inset:0;visibility:hidden;pointer-events:none;height:${referenceHeight}px`;
+        measure.setAttribute('inert', '');
+        stage.append(measure);
+        const targetBox = measure.getBoundingClientRect();
+        const sourceBox = object.getBoundingClientRect();
+        const homeOffset = { x: targetBox.left - sourceBox.left, y: targetBox.top - sourceBox.top };
+        measure.remove();
+        const fold = (opening ? object : parsed).querySelector<SVGElement>('.cover-fold');
+        if (!fold) return null;
+
+        const host = document.createElement('div');
+        pendingHost = host;
+        host.className = 'album-cover-curl-renderer';
+        host.dataset.coverTurn = mode;
+        host.dataset.coverDirection = coverDirection(mode);
+        host.setAttribute('aria-hidden', 'true');
+        host.setAttribute('inert', '');
+
+        let pages: HTMLElement[];
+        let startPage: number;
+        let endPage: number;
+
+        if (mode === 'open-front' || mode === 'close-front') {
+          pages = [
+            createCoverBlankPage('front-placeholder'),
+            createFlexibleCoverPage(cover, 'front-cover', fold),
+            createCoverSpreadPage(left, 'spread-left'),
+            createCoverSpreadPage(right, 'spread-right'),
+          ];
+          startPage = mode === 'open-front' ? 0 : 2;
+          endPage = mode === 'open-front' ? 2 : 0;
+        } else {
+          pages = [
+            createCoverSpreadPage(left, 'spread-left'),
+            createCoverSpreadPage(right, 'spread-right'),
+            createFlexibleCoverPage(cover, 'back-cover', fold),
+            createCoverBlankPage('back-placeholder'),
+          ];
+          startPage = mode === 'close-back' ? 0 : 2;
+          endPage = mode === 'close-back' ? 2 : 0;
+        }
+
+        host.append(...pages);
+        stage.append(host);
+
+        const flip = new PageFlip(host, {
+          width: pageWidth,
+          height: referenceHeight,
+          size: 'fixed',
+          startPage,
+          drawShadow: true,
+          flippingTime: 520,
+          usePortrait: false,
+          startZIndex: 24,
+          autoSize: false,
+          maxShadowOpacity: 0.42,
+          showCover: false,
+          mobileScrollSupport: true,
+          clickEventForward: false,
+          useMouseEvents: false,
+          showPageCorners: false,
+          disableFlipByClick: true,
+        });
+        pendingFlip = flip;
+
+        flip.loadFromHTML(pages);
+        flip.turnToPage(startPage);
+        await waitForVisualAssets(host);
+        if (revision !== geometryRevision || !physicalModeAvailable()) {
+          flip.destroy();
+          return null;
+        }
+
+        const scene: CoverScene = {
+          flip,
+          host,
+          mode,
+          link,
+          direction: coverDirection(mode),
+          startPage,
+          endPage,
+          pageWidth,
+          started: false,
+          settling: false,
+          lastPoint: null,
+          dragStartClientX: null,
+          visualProgress: 0,
+          homeOffset,
+          reveal: null,
+          foldInset: parseFloat(getComputedStyle(host.querySelector('.cover-fold')!).width) / 2,
+          closingSurface: opening ? null : host.querySelector<HTMLElement>(
+            `[data-cover-page="${mode === 'close-front' ? 'spread-left' : 'spread-right'}"]`,
+          ),
+        };
+
+        updateCoverSceneSpatialProgress(scene, 0);
+        host.dataset.coverReady = 'true';
+        liveRenderers.add(scene);
+        return scene;
+      } catch {
+        try { pendingFlip?.destroy(); } catch { /* The fallback link remains usable. */ }
+        pendingHost?.remove();
+        return null;
+      }
+    })();
+
+    preparedCoverScenes.set(link, task);
+    void task.then((scene) => {
+      if (!scene && preparedCoverScenes.get(link) === task) preparedCoverScenes.delete(link);
+    });
+    return task;
+  };
+
+  const updateCoverSceneSpatialProgress = (scene: CoverScene, progress: number) => {
+    const clamped = Math.max(0, Math.min(progress, 1));
+    const closedShift = scene.mode.includes('front')
+      ? -scene.pageWidth / 2
+      : scene.pageWidth / 2;
+    const opening = scene.mode === 'open-front' || scene.mode === 'open-back';
+    const shift = opening
+      ? closedShift * (1 - clamped)
+      : closedShift * clamped;
+    const closedness = opening ? 1 - clamped : clamped;
+    const clipSize = scene.pageWidth * closedness;
+    const front = scene.mode.includes('front');
+    scene.visualProgress = clamped;
+    scene.host.style.setProperty('--cover-scene-shift', `${shift}px`);
+    scene.host.style.setProperty('--cover-scene-clip-left', `${front ? clipSize : 0}px`);
+    scene.host.style.setProperty('--cover-scene-clip-right', `${front ? 0 : clipSize}px`);
+    scene.host.dataset.coverSpatialProgress = clamped.toFixed(3);
+    scene.host.dataset.coverClipSide = front ? 'left' : 'right';
+
+    if (scene.host.classList.contains('is-active')) {
+      const object = getObject();
+      const header = object?.querySelector<HTMLElement>('.site-header');
+      if (header) {
+        header.dataset.coverHomeMotion = '';
+        header.style.translate = `${scene.homeOffset.x * clamped}px ${scene.homeOffset.y * clamped}px`;
+      }
+      const bookmark = object?.querySelector<HTMLDetailsElement>('[data-bookmark-index]');
+      if (object && bookmark) {
+        // The marker is behind the actual scene pages, never behind a fake plate.
+        // At the back hinge it crosses under those pages before emerging on the
+        // mirrored edge. Change side at the middle of the always-present left
+        // sheet, where both ribbon orientations are fully covered by real paper.
+        const width = scene.pageWidth * 2;
+        let anchor = width * (1 - (front ? 0.25 : 0.75) * closedness);
+        const sideBoundary = shift + scene.pageWidth / 2;
+        let leftSide = !front && anchor <= sideBoundary;
+        const sourceClosed = object.classList.contains('is-closed-cover');
+        const objectLeft = sourceClosed ? width / 4 : 0;
+        const objectWidth = sourceClosed ? width / 2 : width;
+        const calculation = scene.flip.getFlipController().getCalculation();
+        if (scene.mode === 'open-back' && calculation && clamped > 0 && clamped < 1) {
+          // BUG-18: use the renderer's real paper cross-section as the insertion
+          // boundary. The ribbon travels one full ribbon-width inside that paper,
+          // changes side while covered, and only approaches the live edge during
+          // the final phase, so it cannot float in the open middle of the spread.
+          const intersections = (area: ({ x: number; y: number } | null)[], y: number) => {
+            const points = area.filter((point): point is { x: number; y: number } => point !== null);
+            return points.flatMap((point, index) => {
+              const next = points[(index + 1) % points.length];
+              if (!next || point.y === next.y || y < Math.min(point.y, next.y) || y > Math.max(point.y, next.y)) return [];
+              return [point.x + (next.x - point.x) * (y - point.y) / (next.y - point.y)];
+            });
+          };
+          const height = scene.flip.getBoundsRect().height;
+          const top = height * 0.4;
+          const folded = calculation.getFlippingClipArea().map(point => point && ({
+            x: scene.pageWidth - point.x, y: point.y,
+          }));
+          const edge = Math.min(...[top, top + bookmark.offsetHeight / 2, top + bookmark.offsetHeight].map(y => {
+            const revealed = intersections(calculation.getBottomClipArea(), y);
+            const stationary = scene.pageWidth;
+            return Math.min(width - clipSize, Math.max(stationary, ...intersections(folded, y), ...revealed));
+          }));
+          const paperEdge = shift + edge;
+          const ribbonWidth =
+            bookmark.querySelector<HTMLElement>('.bookmark-ribbon')?.getBoundingClientRect().width ?? 64;
+          const buriedAnchor = paperEdge - ribbonWidth;
+          const smoothstep = (value: number) => value * value * (3 - 2 * value);
+
+          if (clamped <= 0.25) {
+            anchor = shift;
+            leftSide = true;
+          } else if (clamped < 0.45) {
+            const phase = smoothstep((clamped - 0.25) / 0.2);
+            anchor = shift + (buriedAnchor - shift) * phase;
+            leftSide = true;
+          } else if (clamped <= 0.55) {
+            anchor = buriedAnchor;
+            leftSide = clamped < 0.5;
+          } else if (clamped <= 0.85) {
+            anchor = buriedAnchor;
+            leftSide = false;
+          } else {
+            const phase = smoothstep((clamped - 0.85) / 0.15);
+            anchor = buriedAnchor + (paperEdge - buriedAnchor) * phase;
+            leftSide = false;
+          }
+        } else if (!front && !leftSide && calculation && clamped > 0 && clamped < 1) {
+          // Closing the back cover still uses the actual fold cross-section to
+          // keep the inserted ribbon behind real paper.
+          const intersections = (area: ({ x: number; y: number } | null)[], y: number) => {
+            const points = area.filter((point): point is { x: number; y: number } => point !== null);
+            return points.flatMap((point, index) => {
+              const next = points[(index + 1) % points.length];
+              if (!next || point.y === next.y || y < Math.min(point.y, next.y) || y > Math.max(point.y, next.y)) return [];
+              return [point.x + (next.x - point.x) * (y - point.y) / (next.y - point.y)];
+            });
+          };
+          const height = scene.flip.getBoundsRect().height;
+          const top = height * 0.4;
+          const folded = calculation.getFlippingClipArea().map(point => point && ({
+            x: scene.pageWidth + (opening ? -point.x : point.x), y: point.y,
+          }));
+          const edge = Math.min(...[top, top + bookmark.offsetHeight / 2, top + bookmark.offsetHeight].map(y => {
+            const revealed = intersections(calculation.getBottomClipArea(), y);
+            const stationary = opening ? scene.pageWidth : scene.pageWidth + (revealed.length ? Math.min(...revealed) : scene.pageWidth);
+            return Math.min(width - clipSize, Math.max(stationary, ...intersections(folded, y)));
+          }));
+          anchor = Math.min(anchor, shift + edge);
+        }
+        bookmark.open = false;
+        bookmark.dataset.bookmarkTurning = 'true';
+        bookmark.dataset.bookmarkSide = leftSide ? 'left' : 'right';
+        bookmark.style.setProperty('--bookmark-scene-x', `${anchor - objectLeft - (leftSide ? 0 : objectWidth)}px`);
+      }
+    }
+
+    // A closed cover has no paper underneath its free side. page-flip keeps
+    // the old static page there; its transparent placeholder cannot occlude it.
+    // Subtract the renderer's actual revealed polygon from that static surface,
+    // including its border/shadow. The outer scene mask remains a safety bound;
+    // only this polygon follows the physical fold when the pointer also moves Y.
+    const calculation = scene.flip.getFlipController().getCalculation();
+    if (scene.closingSurface && calculation) {
+      const width = scene.flip.getBoundsRect().pageWidth;
+      const points = calculation.getBottomClipArea()
+        .filter((point): point is { x: number; y: number } => point !== null)
+        .map(({ x, y }) => `${scene.mode === 'close-front' ? width - x : x}px ${y}px`);
+      if (points.length >= 3) {
+        scene.closingSurface.style.clipPath = `polygon(evenodd, 0px 0px, 100% 0px, 100% 100%, 0px 100%, 0px 0px, ${points.join(', ')}, ${points[0]}, 0px 0px)`;
+      }
+    }
+  };
+
+  const coverProgressFromClientX = (scene: CoverScene, clientX: number) => {
+    if (scene.dragStartClientX === null) return scene.visualProgress;
+
+    const rawDistance = clientX - scene.dragStartClientX;
+    const distance = scene.direction === 'next' ? -rawDistance : rawDistance;
+    return Math.max(0, Math.min(distance / scene.pageWidth, 1));
+  };
+
+  const coverRendererPoint = (
+    scene: CoverScene,
+    clientX: number,
+    clientY: number,
+  ) => {
+    const dist = scene.flip.getUI().getDistElement();
+    const rect = dist.getBoundingClientRect();
+
+    return {
+      x: Math.max(1, Math.min(clientX - rect.left, rect.width - 1)),
+      y: Math.max(1, Math.min(clientY - rect.top, rect.height - 1)),
+    };
+  };
+
+  const beginCoverTurn = (
+    scene: CoverScene,
+    startClientX: number,
+    startClientY: number,
+    currentClientX: number,
+    currentClientY: number,
+  ) => {
+    if (scene.started || scene.settling || !scene.host.isConnected) return;
+
+    const stage = getStage();
+    if (!stage) return;
+
+    const start = coverRendererPoint(scene, startClientX, startClientY);
+    const current = coverRendererPoint(scene, currentClientX, currentClientY);
+    scene.dragStartClientX = startClientX;
+    scene.flip.startUserTouch(start);
+    scene.flip.userMove(current, false);
+    scene.lastPoint = current;
+    updateCoverSceneSpatialProgress(scene, coverProgressFromClientX(scene, currentClientX));
+    scene.started = true;
+    // Keep the stable corner until page-flip has painted the first curved face.
+    // Reveal that face and hide the source in the same frame, never a flat gap.
+    scene.reveal = new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (scene.host.isConnected) {
+        stage.classList.add('is-cover-turning');
+        scene.host.classList.add('is-active');
+        scene.host.dataset.coverActive = 'true';
+        updateCoverSceneSpatialProgress(scene, scene.visualProgress);
+        document.documentElement.dataset.albumCoverActive = scene.mode;
+      }
+      resolve();
+    })));
+  };
+
+  const moveCoverTurn = (
+    scene: CoverScene,
+    clientX: number,
+    clientY: number,
+  ) => {
+    if (!scene.started || scene.settling || !scene.host.isConnected) return;
+
+    const point = coverRendererPoint(scene, clientX, clientY);
+    scene.flip.userMove(point, false);
+    scene.lastPoint = point;
+    updateCoverSceneSpatialProgress(scene, coverProgressFromClientX(scene, clientX));
+  };
+
+  const destroyCoverScene = (scene: CoverScene) => {
+    resetBookmarkScene();
+    const header = getObject()?.querySelector<HTMLElement>('.site-header');
+    if (header) {
+      delete header.dataset.coverHomeMotion;
+      header.style.removeProperty('translate');
+    }
+    getStage()?.classList.remove('is-cover-turning');
+    delete document.documentElement.dataset.albumCoverActive;
+    preparedCoverScenes.delete(scene.link);
+    liveRenderers.delete(scene);
+
+    try {
+      scene.flip.destroy();
+    } catch {
+      scene.host.remove();
+    }
+  };
+
+  const animateCoverTo = async (
+    scene: CoverScene,
+    target: { x: number; y: number },
+    targetProgress: number,
+    duration: number,
+  ) => {
+    const start = scene.lastPoint ?? target;
+    const startProgress = scene.visualProgress;
+    const startedAt = performance.now();
+
+    await new Promise<void>((resolve) => {
+      const frame = (now: number) => {
+        if (!scene.host.isConnected) { resolve(); return; }
+        const elapsed = Math.min(1, (now - startedAt) / Math.max(duration, 1));
+        const eased = elapsed < 0.5
+          ? 4 * Math.pow(elapsed, 3)
+          : 1 - Math.pow(-2 * elapsed + 2, 3) / 2;
+        const point = {
+          x: start.x + (target.x - start.x) * eased,
+          y: start.y + (target.y - start.y) * eased,
+        };
+
+        scene.flip.userMove(point, false);
+        scene.lastPoint = point;
+        updateCoverSceneSpatialProgress(
+          scene,
+          startProgress + (targetProgress - startProgress) * eased,
+        );
+
+        if (elapsed < 1) requestAnimationFrame(frame);
+        else resolve();
+      };
+
+      requestAnimationFrame(frame);
+    });
+  };
+
+  const startAutomaticCoverTurn = (scene: CoverScene) => {
+    const dist = scene.flip.getUI().getDistElement();
+    const rect = dist.getBoundingClientRect();
+    const startX = scene.direction === 'next' ? rect.right - 10 : rect.left + 10;
+    const startY = rect.bottom - 10;
+    const currentX = scene.direction === 'next' ? startX - 12 : startX + 12;
+    beginCoverTurn(scene, startX, startY, currentX, startY - 2);
+  };
+
+  const settleCoverTurn = async (
+    scene: CoverScene,
+    progress: number,
+    commit: boolean,
+    origin: 'pointer' | 'keyboard' = 'pointer',
+  ) => {
+    if (!scene.host.isConnected || !scene.started || scene.settling) return;
+    scene.settling = true;
+    await scene.reveal;
+    if (!scene.host.isConnected) return;
+
+    const dist = scene.flip.getUI().getDistElement();
+    const rect = dist.getBoundingClientRect();
+    const clamped = Math.max(0, Math.min(progress, 1));
+    // Keep the pointer geometry validated for opening/cancellation (notably
+    // open-back / BUG-18). Only a committed closing cover converges toward the
+    // small resting fold before the document handoff.
+    const closing = scene.mode === 'close-front' || scene.mode === 'close-back';
+    const inset = commit && closing ? scene.foldInset : 1;
+    const target = commit
+      ? {
+          x: scene.direction === 'next' ? inset : rect.width - inset,
+          y: rect.height - inset,
+        }
+      : {
+          x: scene.direction === 'next' ? rect.width - inset : inset,
+          y: rect.height - inset,
+        };
+    const duration = commit
+      ? Math.round(260 + (1 - clamped) * 320)
+      : Math.round(220 + clamped * 180);
+
+    await animateCoverTo(scene, target, commit ? 1 : 0, duration);
+    if (!scene.host.isConnected) return;
+
+    if (!commit) {
+      destroyCoverScene(scene);
+      return;
+    }
+
+    scene.flip.turnToPage(scene.endPage);
+    // turnToPage alone leaves page-flip's dragged face/shadows alive. Retire
+    // them through its renderer API, then reveal the cover's resting fold in
+    // the same paint as the settled face; otherwise two creases can overlap.
+    const render = scene.flip.getRender();
+    render.setBottomPage(null);
+    render.setFlippingPage(null);
+    render.clearShadow();
+    await new Promise<void>(resolve => requestAnimationFrame(() => {
+      scene.host.dataset.coverSettled = 'true';
+      resolve();
+    }));
+    if (!scene.host.isConnected) return;
+    rememberFocus(origin);
+    document.documentElement.dataset.albumTurnNavigation = 'committed';
+
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    window.location.assign(scene.link.href);
+  };
+
+  const navigateDirect = (
+    link: HTMLAnchorElement,
+    origin: 'keyboard' | 'pointer',
+  ) => {
+    rememberFocus(origin);
+    window.location.assign(link.href);
+  };
+
+  focusDestination();
+
+  const invalidatePreparedGeometry = () => {
+    geometryRevision += 1;
+    for (const renderer of liveRenderers) {
+      if ('mode' in renderer) destroyCoverScene(renderer);
+      else destroyRenderer(renderer);
+    }
+    preparedRenderers.clear();
+    preparedCoverScenes.clear();
+  };
+  window.addEventListener('resize', invalidatePreparedGeometry);
+  reducedMotion.addEventListener('change', invalidatePreparedGeometry);
+
+  document.querySelectorAll<HTMLAnchorElement>('[data-page-navigation] a').forEach((link) => {
+    const direction: TurnDirection =
+      link.dataset.pageDirection === 'previous' ? 'previous' : 'next';
+    let pointerId: number | null = null;
+    let pointerRevision = geometryRevision;
+    let startX = 0;
+    let startY = 0;
+    let lastX = 0;
+    let lastY = 0;
+    let dragging = false;
+    let suppressClick = false;
+    let activeRenderer: FlexibleRenderer | null = null;
+    let activeCover: CoverScene | null = null;
+
+    const warmInteraction = () => {
+      if (!physicalModeAvailable()) return;
+      const coverMode = getCoverMode(link);
+
+      if (coverMode) {
+        void prepareCoverScene(link).then((scene) => {
+          activeCover = scene;
+          if (!scene || pointerId === null || !dragging) return;
+          beginCoverTurn(scene, startX, startY, lastX, lastY);
+        });
+        return;
+      }
+
+      void prepareFlexibleRenderer(link, direction).then((renderer) => {
+        activeRenderer = renderer;
+        if (!renderer || pointerId === null || !dragging) return;
+        beginFlexibleTurn(renderer, startX, startY, lastX, lastY);
+      });
+    };
+
+    link.draggable = false;
+    link.addEventListener('pointerenter', warmInteraction);
+    link.addEventListener('focus', warmInteraction);
+
+    link.addEventListener('click', (event) => {
+      if (!isPlainActivation(event)) return;
+      if (event.detail === 0) suppressClick = false;
+      if (suppressClick) {
+        event.preventDefault();
+        suppressClick = false;
+        return;
+      }
+
+      const coverMode = getCoverMode(link);
+      if (!physicalModeAvailable()) {
+        rememberFocus(event.detail === 0 ? 'keyboard' : 'pointer');
+        return;
+      }
+
+      event.preventDefault();
+      const origin = event.detail === 0 ? 'keyboard' : 'pointer';
+      if (automaticTurnInFlight) return;
+
+      if (coverMode) {
+        void prepareCoverScene(link).then((scene) => {
+          if (!scene) {
+            navigateDirect(link, origin);
+            return;
+          }
+          startAutomaticCoverTurn(scene);
+          void settleCoverTurn(scene, 0, true, origin);
+        });
+        return;
+      }
+
+      automaticTurnInFlight = true;
+      document.documentElement.dataset.albumAutomaticTurn = direction;
+      link.dataset.pageAutoPending = 'true';
+      void runAutomaticFlexibleTurn(link, direction, origin);
+    });
+
+    link.addEventListener('keydown', (event) => {
+      if (event.key !== ' ' || event.repeat) return;
+      event.preventDefault();
+      link.click();
+    });
+
+    link.addEventListener('pointerdown', (event) => {
+      suppressClick = false;
+      if (!physicalModeAvailable() || !event.isPrimary || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+      pointerId = event.pointerId;
+      pointerRevision = geometryRevision;
+      startX = event.clientX;
+      startY = event.clientY;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      dragging = false;
+      warmInteraction();
+    });
+
+    document.addEventListener('pointermove', (event) => {
+      if (pointerId !== event.pointerId) return;
+
+      lastX = event.clientX;
+      lastY = event.clientY;
+      const rawDistance = event.clientX - startX;
+      if (!dragging && Math.hypot(rawDistance, event.clientY - startY) < 8) return;
+
+      dragging = true;
+      event.preventDefault();
+
+      const coverMode = getCoverMode(link);
+      if (coverMode) {
+        if (!activeCover) return;
+        if (!activeCover.started) {
+          beginCoverTurn(activeCover, startX, startY, lastX, lastY);
+        } else {
+          moveCoverTurn(activeCover, lastX, lastY);
+        }
+        return;
+      }
+
+      if (!activeRenderer) return;
+      if (!activeRenderer.started) {
+        beginFlexibleTurn(activeRenderer, startX, startY, lastX, lastY);
+      } else {
+        moveFlexibleTurn(activeRenderer, lastX, lastY);
+      }
+    });
+
+    document.addEventListener('pointerup', (event) => {
+      if (pointerId !== event.pointerId) return;
+      if (pointerRevision !== geometryRevision) {
+        pointerId = null;
+        dragging = false;
+        return;
+      }
+
+      const rawDistance = event.clientX - startX;
+      const coverMode = getCoverMode(link);
+      const pageWidth = coverMode
+        ? activeCover?.pageWidth ?? (getStage()?.getBoundingClientRect().width ?? 2) / 2
+        : getActivePage(direction)?.getBoundingClientRect().width ?? 1;
+      const distance = direction === 'next' ? -rawDistance : rawDistance;
+      const progress = Math.max(0, Math.min(distance / pageWidth, 1));
+      pointerId = null;
+
+      if (!dragging) return;
+
+      suppressClick = true;
+      dragging = false;
+      event.preventDefault();
+
+      if (coverMode) {
+        if (!activeCover) {
+          if (progress >= 0.4) navigateDirect(link, 'pointer');
+          return;
+        }
+        void settleCoverTurn(activeCover, progress, progress >= 0.4);
+        return;
+      }
+
+      if (!activeRenderer?.started) {
+        if (progress >= 0.4) navigateDirect(link, 'pointer');
+        return;
+      }
+
+      void settleFlexibleTurn(activeRenderer, progress, progress >= 0.4);
+    });
+
+    document.addEventListener('pointercancel', (event) => {
+      if (pointerId !== event.pointerId) return;
+
+      pointerId = null;
+      if (!dragging) return;
+
+      suppressClick = true;
+      dragging = false;
+      const coverMode = getCoverMode(link);
+      if (coverMode && activeCover?.started) {
+        const pageWidth = activeCover.pageWidth;
+        const raw = lastX - startX;
+        const distance = direction === 'next' ? -raw : raw;
+        const progress = Math.max(0, Math.min(distance / pageWidth, 1));
+        void settleCoverTurn(activeCover, progress, false);
+      } else if (activeRenderer?.started) {
+        const pageWidth = getActivePage(direction)?.getBoundingClientRect().width ?? 1;
+        const distance = direction === 'next' ? startX - lastX : lastX - startX;
+        const progress = Math.max(0, Math.min(distance / pageWidth, 1));
+        void settleFlexibleTurn(activeRenderer, progress, false);
+      }
+    });
+  });
+
+  document.querySelectorAll<HTMLAnchorElement>('[data-cover-open-action]').forEach((link) => {
+    const matchingControl = document.querySelector<HTMLAnchorElement>(
+      `[data-page-navigation] a[href="${link.getAttribute('href')}"]`,
+    );
+    if (!matchingControl) return;
+
+    link.addEventListener('pointerenter', () => {
+      if (physicalModeAvailable()) void prepareCoverScene(matchingControl);
+    }, { once: true });
+
+    link.addEventListener('focus', () => {
+      if (physicalModeAvailable()) void prepareCoverScene(matchingControl);
+    }, { once: true });
+
+    link.addEventListener('click', (event) => {
+      if (!isPlainActivation(event)) return;
+      if (!physicalModeAvailable()) {
+        rememberFocus(event.detail === 0 ? 'keyboard' : 'pointer');
+        return;
+      }
+
+      event.preventDefault();
+      const origin = event.detail === 0 ? 'keyboard' : 'pointer';
+      void prepareCoverScene(matchingControl).then((scene) => {
+        if (!scene) {
+          navigateDirect(matchingControl, origin);
+          return;
+        }
+        startAutomaticCoverTurn(scene);
+        void settleCoverTurn(scene, 0, true, origin);
+      });
+    });
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    if (document.querySelector('dialog[open]')) return;
+
+    const target = event.target;
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement ||
+      (target instanceof HTMLElement && (target.isContentEditable || target.closest('[data-bookmark-index][open]')))
+    ) return;
+
+    const direction = event.key === 'ArrowLeft' ? 'previous' : 'next';
+    const link = document.querySelector<HTMLAnchorElement>(
+      `[data-page-navigation] a[data-page-direction="${direction}"]`,
+    );
+    if (!link) return;
+
+    event.preventDefault();
+    if (getCoverMode(link) && physicalModeAvailable()) link.click();
+    else navigateDirect(link, 'keyboard');
+  });
+
+  document.documentElement.dataset.pageNavigationReady = 'true';
+</script>

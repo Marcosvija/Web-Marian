@@ -1,0 +1,116 @@
+{
+  "slug": "categoria-extensa-de-prueba",
+  "title": "Categoría extensa de prueba",
+  "description": "Fixture aislado para paginación y mosaicos de cinco fotografías.",
+  "order": 3,
+  "photos": [
+    {
+      "id": "foto-extensa-1",
+      "image": "../images/photo-one.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 1"
+    },
+    {
+      "id": "foto-extensa-2",
+      "image": "../images/photo-two.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 2"
+    },
+    {
+      "id": "foto-extensa-3",
+      "image": "../images/photo-one.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 3"
+    },
+    {
+      "id": "foto-extensa-4",
+      "image": "../images/photo-two.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 4"
+    },
+    {
+      "id": "foto-extensa-5",
+      "image": "../images/photo-one.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 5"
+    },
+    {
+      "id": "foto-extensa-6",
+      "image": "../images/photo-two.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 6"
+    },
+    {
+      "id": "foto-extensa-7",
+      "image": "../images/photo-one.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 7"
+    },
+    {
+      "id": "foto-extensa-8",
+      "image": "../images/photo-two.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 8"
+    },
+    {
+      "id": "foto-extensa-9",
+      "image": "../images/photo-one.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 9"
+    },
+    {
+      "id": "foto-extensa-10",
+      "image": "../images/photo-two.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 10"
+    },
+    {
+      "id": "foto-extensa-11",
+      "image": "../images/photo-one.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 11"
+    },
+    {
+      "id": "foto-extensa-12",
+      "image": "../images/photo-two.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 12"
+    },
+    {
+      "id": "foto-extensa-13",
+      "image": "../images/photo-one.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 13"
+    },
+    {
+      "id": "foto-extensa-14",
+      "image": "../images/photo-two.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 14"
+    },
+    {
+      "id": "foto-extensa-15",
+      "image": "../images/photo-one.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 15"
+    },
+    {
+      "id": "foto-extensa-16",
+      "image": "../images/photo-two.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 16"
+    },
+    {
+      "id": "foto-extensa-17",
+      "image": "../images/photo-one.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 17"
+    },
+    {
+      "id": "foto-extensa-18",
+      "image": "../images/photo-two.svg",
+      "decorative": false,
+      "alt": "Patrón de paginación 18"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+---
+// Test-only content volumes: this route is never emitted by a production build.
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import BookmarkIndex from '../../../components/BookmarkIndex.astro';
+import PortfolioIndexView from '../../../components/PortfolioIndexView.astro';
+import { buildAlbumMap, getPortfolioEditorialMap } from '../../../lib/album-map';
+
+export function getStaticPaths() {
+  return process.env.WEB_MARIAN_CONTENT_FIXTURES === '1'
+    ? ['short', 'medium', 'full', 'overflow'].map(size => ({ params: { size } }))
+    : [];
+}
+const { size } = Astro.params;
+const count = size === 'short' ? 0 : size === 'medium' ? 3 : size === 'full' ? 7 : 25;
+const albumMap = buildAlbumMap(Array.from({ length: count }, (_, index) => ({ data: {
+  slug: `composicion-${index + 1}`,
+  title: index % 3 === 0 ? `Categoría ${index + 1}: una selección de fotografías con un título editorial de varias líneas` : `Categoría ${index + 1}`,
+  photos: Array.from({ length: index === 0 ? (size === 'overflow' ? 200 : 23) : 4 }),
+} })));
+const editorialMap = getPortfolioEditorialMap(albumMap);
+---
+<BaseLayout title={`Composición de prueba: ${size}`}>
+  <div class="site-shell">
+    <main id="contenido" class="album-frame" tabindex="-1">
+      <div class="album-stage">
+        <div class="album-object" data-album-object>
+          <BookmarkIndex items={albumMap} currentPath="/portfolio/" />
+          <PortfolioIndexView items={editorialMap} currentPath="/portfolio/" />
+        </div>
+      </div>
+    </main>
+  </div>
+</BaseLayout>
