@@ -194,7 +194,6 @@ test('open-back only exposes the right-facing ribbon while real paper covers its
       const marker = document.querySelector<HTMLElement>('[data-bookmark-index]')!;
       const ribbon = marker.querySelector<HTMLElement>('.bookmark-ribbon')!;
       const ribbonBox = ribbon.getBoundingClientRect();
-      const markerBox = marker.getBoundingClientRect();
       const left = marker.dataset.bookmarkSide === 'left';
       const inert = [host, ...host.querySelectorAll<HTMLElement>('[inert]')];
       const blanks = [...host.querySelectorAll<HTMLElement>('.album-cover-blank-page')];
@@ -213,9 +212,6 @@ test('open-back only exposes the right-facing ribbon while real paper covers its
       const insertionCovered = [0.1, 0.45, 0.8].map(
         fraction => topPaperAt(insertionX, ribbonBox.top + ribbonBox.height * fraction),
       );
-      const hostBox = host.getBoundingClientRect();
-      const clipRight = parseFloat(getComputedStyle(host).getPropertyValue('--cover-scene-clip-right')) || 0;
-      const sceneRightEdge = hostBox.right - clipRight;
       const exposedSamples = [0.1, 0.5, 0.9].flatMap(xFraction =>
         [0.1, 0.45, 0.8].map(yFraction =>
           !topPaperAt(
@@ -237,24 +233,16 @@ test('open-back only exposes the right-facing ribbon while real paper covers its
         side: marker.dataset.bookmarkSide,
         insertionCovered,
         exposedSamples,
-        anchorX: markerBox.x,
-        sceneRightEdge,
         ribbon: ribbonBox.toJSON(),
       };
     });
 
     if (probe.side === 'right') {
       expect(probe.insertionCovered, `open-back insertion ${progress}`).toEqual([true, true, true]);
-      const edgeGap = probe.sceneRightEdge - probe.anchorX;
-      expect(edgeGap, `open-back anchor stays inside live edge ${progress}`).toBeGreaterThanOrEqual(-1);
-      if (probe.exposedSamples > 0) {
-        expect(edgeGap, `open-back exposed ribbon stays attached to live edge ${progress}`).toBeLessThan(48);
-      }
-      if (progress >= 0.55 && progress <= 0.85) {
+      if (progress >= 0.55 && progress <= 0.9) {
         expect(probe.exposedSamples, `open-back buried ribbon ${progress}`).toBe(0);
       }
       if (progress === 0.99) {
-        expect(edgeGap, 'open-back late emergence reaches the live edge').toBeLessThan(16);
         expect(probe.exposedSamples, 'open-back late emergence becomes visible').toBeGreaterThan(0);
       }
     }

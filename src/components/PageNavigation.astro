@@ -785,23 +785,41 @@ const nextKicker =
         const objectLeft = sourceClosed ? width / 4 : 0;
         const objectWidth = sourceClosed ? width / 2 : width;
         const calculation = scene.flip.getFlipController().getCalculation();
-        if (scene.mode === 'open-back' && clamped > 0 && clamped < 1) {
-          // BUG-18: reopening the back cover cannot expose a right-facing ribbon
-          // in the middle of the spread. Treat the bookmark as a real inserted
-          // strip: keep it on the live left edge, bury it under the left page,
-          // switch orientation while fully covered, then carry it under paper
-          // until it reaches the live right edge and can emerge there.
+        if (scene.mode === 'open-back' && calculation && clamped > 0 && clamped < 1) {
+          // BUG-18: use the renderer's real paper cross-section as the insertion
+          // boundary. The ribbon travels one full ribbon-width inside that paper,
+          // changes side while covered, and only approaches the live edge during
+          // the final phase, so it cannot float in the open middle of the spread.
+          const intersections = (area: ({ x: number; y: number } | null)[], y: number) => {
+            const points = area.filter((point): point is { x: number; y: number } => point !== null);
+            return points.flatMap((point, index) => {
+              const next = points[(index + 1) % points.length];
+              if (!next || point.y === next.y || y < Math.min(point.y, next.y) || y > Math.max(point.y, next.y)) return [];
+              return [point.x + (next.x - point.x) * (y - point.y) / (next.y - point.y)];
+            });
+          };
+          const height = scene.flip.getBoundsRect().height;
+          const top = height * 0.4;
+          const folded = calculation.getFlippingClipArea().map(point => point && ({
+            x: scene.pageWidth - point.x, y: point.y,
+          }));
+          const edge = Math.min(...[top, top + bookmark.offsetHeight / 2, top + bookmark.offsetHeight].map(y => {
+            const revealed = intersections(calculation.getBottomClipArea(), y);
+            const stationary = scene.pageWidth;
+            return Math.min(width - clipSize, Math.max(stationary, ...intersections(folded, y), ...revealed));
+          }));
+          const paperEdge = shift + edge;
+          const ribbonWidth =
+            bookmark.querySelector<HTMLElement>('.bookmark-ribbon')?.getBoundingClientRect().width ?? 64;
+          const buriedAnchor = paperEdge - ribbonWidth;
           const smoothstep = (value: number) => value * value * (3 - 2 * value);
-          const leftEdge = shift;
-          const rightEdge = shift + width - clipSize;
-          const buriedAnchor = shift + scene.pageWidth * 0.75;
 
           if (clamped <= 0.25) {
-            anchor = leftEdge;
+            anchor = shift;
             leftSide = true;
           } else if (clamped < 0.45) {
             const phase = smoothstep((clamped - 0.25) / 0.2);
-            anchor = leftEdge + (buriedAnchor - leftEdge) * phase;
+            anchor = shift + (buriedAnchor - shift) * phase;
             leftSide = true;
           } else if (clamped <= 0.55) {
             anchor = buriedAnchor;
@@ -811,7 +829,7 @@ const nextKicker =
             leftSide = false;
           } else {
             const phase = smoothstep((clamped - 0.85) / 0.15);
-            anchor = buriedAnchor + (rightEdge - buriedAnchor) * phase;
+            anchor = buriedAnchor + (paperEdge - buriedAnchor) * phase;
             leftSide = false;
           }
         } else if (!front && !leftSide && calculation && clamped > 0 && clamped < 1) {
