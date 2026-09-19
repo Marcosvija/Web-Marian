@@ -179,8 +179,8 @@
       inset: auto 0 0 auto;
       z-index: 2;
       display: block;
-      width: 3rem;
-      height: 3rem;
+      width: 2.75rem;
+      height: 2.75rem;
       overflow: visible;
       pointer-events: none;
     }
@@ -190,7 +190,8 @@
       transform: scaleX(-1);
     }
 
-    .cover-fold-return {
+    .cover-fold-return,
+    .cover-fold-edge {
       transition: d 160ms ease;
     }
 
@@ -200,7 +201,12 @@
 
     .page-navigation-control:hover .cover-fold-return,
     .page-navigation-control:focus-visible .cover-fold-return {
-      d: path("M 1,47 C 21,44 44,21 47,1 C 44,12 25,7 17,15 C 10,27 16,43 1,47 Z");
+      d: path("M 2,47 C 13,46 23,41 31,33 C 39,25 45,14 47,2 C 43,11 37,18 31,23 C 26,28 24,34 20,38 C 14,43 8,46 2,47 Z");
+    }
+
+    .page-navigation-control:hover .cover-fold-edge,
+    .page-navigation-control:focus-visible .cover-fold-edge {
+      d: path("M 47,2 C 43,11 37,18 31,23 C 26,28 24,34 20,38 C 14,43 8,46 2,47");
     }
 
     .page-navigation-control:hover .cover-fold-contact,
@@ -257,6 +263,7 @@
   .page-navigation-control::before,
   .page-navigation-control .page-navigation-copy,
   .cover-fold-return,
+  .cover-fold-edge,
   .cover-fold-contact {
     transition: none;
   }

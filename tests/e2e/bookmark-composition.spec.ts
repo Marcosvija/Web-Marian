@@ -194,6 +194,7 @@ test('open-back only exposes the right-facing ribbon while real paper covers its
       const marker = document.querySelector<HTMLElement>('[data-bookmark-index]')!;
       const ribbon = marker.querySelector<HTMLElement>('.bookmark-ribbon')!;
       const ribbonBox = ribbon.getBoundingClientRect();
+      const markerBox = marker.getBoundingClientRect();
       const left = marker.dataset.bookmarkSide === 'left';
       const inert = [host, ...host.querySelectorAll<HTMLElement>('[inert]')];
       const blanks = [...host.querySelectorAll<HTMLElement>('.album-cover-blank-page')];
@@ -212,6 +213,14 @@ test('open-back only exposes the right-facing ribbon while real paper covers its
       const insertionCovered = [0.1, 0.45, 0.8].map(
         fraction => topPaperAt(insertionX, ribbonBox.top + ribbonBox.height * fraction),
       );
+      // BUG-18 is perceptual: a deep part of the ribbon can still be covered while
+      // the visible ribbon floats away from the real paper edge. Probe four pixels
+      // inside the live anchor itself, where paper must still support a right-facing
+      // ribbon during the second half of Contraportada → Contacto.
+      const nearAnchorX = left ? markerBox.x + 4 : markerBox.x - 4;
+      const anchorSupported = [0.1, 0.45, 0.8].map(
+        fraction => topPaperAt(nearAnchorX, ribbonBox.top + ribbonBox.height * fraction),
+      );
 
       host.style.removeProperty('pointer-events');
       blanks.forEach((element, index) => {
@@ -224,12 +233,15 @@ test('open-back only exposes the right-facing ribbon while real paper covers its
       return {
         side: marker.dataset.bookmarkSide,
         insertionCovered,
+        anchorSupported,
+        anchorX: markerBox.x,
         ribbon: ribbonBox.toJSON(),
       };
     });
 
     if (probe.side === 'right') {
-      expect(probe.insertionCovered, `open-back ${progress}`).toEqual([true, true, true]);
+      expect(probe.insertionCovered, `open-back insertion ${progress}`).toEqual([true, true, true]);
+      expect(probe.anchorSupported, `open-back anchor ${progress}`).toEqual([true, true, true]);
     }
     evidence.push({ progress, ...probe });
   }

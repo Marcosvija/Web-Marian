@@ -852,19 +852,13 @@ const nextKicker =
     scene: CoverScene,
     clientX: number,
     clientY: number,
-    keepRestingFold = true,
   ) => {
     const dist = scene.flip.getUI().getDistElement();
     const rect = dist.getBoundingClientRect();
 
-    const opening = scene.mode === 'open-front' || scene.mode === 'open-back';
-    // The resting corner is already lifted. Start/cancel at its measured
-    // footprint, so handing it to the renderer never passes through flat paper.
-    const inset = opening && keepRestingFold ? scene.foldInset : 1;
     return {
-      x: Math.max(scene.direction === 'previous' ? inset : 1,
-        Math.min(clientX - rect.left, rect.width - (scene.direction === 'next' ? inset : 1))),
-      y: Math.max(1, Math.min(clientY - rect.top, rect.height - inset)),
+      x: Math.max(1, Math.min(clientX - rect.left, rect.width - 1)),
+      y: Math.max(1, Math.min(clientY - rect.top, rect.height - 1)),
     };
   };
 
@@ -880,7 +874,7 @@ const nextKicker =
     const stage = getStage();
     if (!stage) return;
 
-    const start = coverRendererPoint(scene, startClientX, startClientY, false);
+    const start = coverRendererPoint(scene, startClientX, startClientY);
     const current = coverRendererPoint(scene, currentClientX, currentClientY);
     scene.dragStartClientX = startClientX;
     scene.flip.startUserTouch(start);
@@ -994,8 +988,11 @@ const nextKicker =
     const dist = scene.flip.getUI().getDistElement();
     const rect = dist.getBoundingClientRect();
     const clamped = Math.max(0, Math.min(progress, 1));
-    const opening = scene.mode === 'open-front' || scene.mode === 'open-back';
-    const inset = (commit ? !opening : opening) ? scene.foldInset : 1;
+    // Keep the pointer geometry validated for opening/cancellation (notably
+    // open-back / BUG-18). Only a committed closing cover converges toward the
+    // small resting fold before the document handoff.
+    const closing = scene.mode === 'close-front' || scene.mode === 'close-back';
+    const inset = commit && closing ? scene.foldInset : 1;
     const target = commit
       ? {
           x: scene.direction === 'next' ? inset : rect.width - inset,
