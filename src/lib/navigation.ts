@@ -3,6 +3,7 @@ import { buildAlbumMap } from './album-map';
 
 export {
   buildAlbumMap,
+  getPortfolioEditorialMap,
   type AlbumDestination,
   type AlbumPage,
   type NavigationItem,

@@ -16,7 +16,7 @@ test('the album routes, sequential page controls and recoverable index work with
   await expect(page).toHaveURL(/\/portfolio\/$/);
 
   await page.locator('.bookmark-index summary').click();
-  const albumIndex = page.getByRole('navigation', { name: 'Índice del álbum' });
+  const albumIndex = page.getByRole('navigation', { name: 'Índice global del álbum' });
   await expect(albumIndex.locator('a[href="/portfolio/"]')).toContainText('Atrapando instantes');
   await expect(albumIndex.getByRole('link', { name: 'Portada', exact: true })).toBeVisible();
   await expect(albumIndex.getByRole('link', { name: 'Quién soy' })).toBeVisible();
@@ -35,7 +35,7 @@ test('the album routes, sequential page controls and recoverable index work with
 });
 
 
-test('bookmark and Atrapando instantes share the complete canonical album map and redundant CTAs are absent', async ({ page }) => {
+test('bookmark stays global while Atrapando instantes is a photographic editorial index and redundant CTAs are absent', async ({ page }) => {
   await page.goto('/portfolio/');
 
   const bookmarkMap = page.locator('[data-album-map-view="bookmark"] [data-album-map-link]');
@@ -43,7 +43,7 @@ test('bookmark and Atrapando instantes share the complete canonical album map an
   const hrefs = (locator: import('@playwright/test').Locator) =>
     locator.evaluateAll((links) => links.map((link) => link.getAttribute('href')));
 
-  const expected = [
+  expect(await hrefs(bookmarkMap)).toEqual([
     '/',
     '/sobre-mi/',
     '/portfolio/',
@@ -53,18 +53,31 @@ test('bookmark and Atrapando instantes share the complete canonical album map an
     '/portfolio/categoria-extensa-de-prueba/2/',
     '/contacto/',
     '/contraportada/',
-  ];
+  ]);
 
-  expect(await hrefs(bookmarkMap)).toEqual(expected);
-  expect(await hrefs(indexMap)).toEqual(expected);
+  expect(await hrefs(indexMap)).toEqual([
+    '/portfolio/categoria-de-prueba/',
+    '/portfolio/segunda-categoria-de-prueba/',
+    '/portfolio/categoria-extensa-de-prueba/',
+    '/portfolio/categoria-extensa-de-prueba/2/',
+  ]);
 
-  for (const view of ['bookmark', 'index'] as const) {
-    const root = page.locator(`[data-album-map-view="${view}"]`);
-    await expect(root.locator('a[href="/portfolio/"]')).toHaveAttribute('aria-current', 'page');
-    const secondSpread = root.locator('a[href="/portfolio/categoria-extensa-de-prueba/2/"]');
-    await expect(secondSpread).toHaveAttribute('href', '/portfolio/categoria-extensa-de-prueba/2/');
-    await expect(secondSpread).toContainText('Pliego 2');
-  }
+  const bookmark = page.getByRole('navigation', { name: 'Índice global del álbum' });
+  await expect(bookmark.getByText('Índice del álbum', { exact: true })).toBeVisible();
+  await expect(bookmark.locator('a[href="/portfolio/"]')).toHaveAttribute('aria-current', 'page');
+
+  const index = page.locator('[data-album-map-view="index"]');
+  await expect(index.getByText('Índice fotográfico', { exact: true })).toBeVisible();
+  await expect(index.locator('a[href="/"]')).toHaveCount(0);
+  await expect(index.locator('a[href="/sobre-mi/"]')).toHaveCount(0);
+  await expect(index.locator('a[href="/portfolio/"]')).toHaveCount(0);
+  await expect(index.locator('a[href="/contacto/"]')).toHaveCount(0);
+  await expect(index.locator('a[href="/contraportada/"]')).toHaveCount(0);
+  await expect(index.locator('[aria-current="page"]')).toHaveCount(0);
+
+  const secondSpread = index.locator('a[href="/portfolio/categoria-extensa-de-prueba/2/"]');
+  await expect(secondSpread).toContainText('Pliego 2');
+  await expect(secondSpread).toHaveAccessibleName('Categoría extensa de prueba · Pliego 2');
 
   await page.goto('/portfolio/categoria-extensa-de-prueba/2/');
   await expect(
@@ -79,7 +92,7 @@ test('bookmark and Atrapando instantes share the complete canonical album map an
   await expect(page.locator('.portfolio-index .text-action')).toHaveCount(0);
   await expect(
     page.locator('[data-album-map-view="index"]').getByRole('link', { name: 'Contacto', exact: true }),
-  ).toBeVisible();
+  ).toHaveCount(0);
 
   await page.goto('/contacto/');
   await expect(page.getByRole('link', { name: 'Volver al índice' })).toHaveCount(0);
@@ -253,7 +266,7 @@ test('the bookmark is physically inserted laterally and includes both covers in 
       expect((openBox?.x ?? 0), route).toBeLessThan((restingBox?.x ?? 0) - 10);
     }
 
-    const panel = page.getByRole('navigation', { name: 'Índice del álbum' });
+    const panel = page.getByRole('navigation', { name: 'Índice global del álbum' });
     const links = panel.getByRole('link');
     await expect(links.first()).toHaveText(/Portada/);
     await expect(links.last()).toHaveText(/Contraportada/);
@@ -285,7 +298,7 @@ test('mobile index keeps Portada and Contraportada with a labelled 44px control'
   await expect(tab).toContainText('Índice');
 
   await tab.click();
-  const panel = page.getByRole('navigation', { name: 'Índice del álbum' });
+  const panel = page.getByRole('navigation', { name: 'Índice global del álbum' });
   const links = panel.getByRole('link');
   await expect(links.first()).toHaveText(/Portada/);
   await expect(links.last()).toHaveText(/Contraportada/);
@@ -461,7 +474,7 @@ test('single-page reflow keeps small page gaps and a continuous editorial index'
     await expect(left, route).toHaveCSS('display', 'block');
     if (route === '/portfolio/') {
       await expect(right).toHaveCSS('display', 'none');
-      await expect(left.locator('[data-album-map-link]')).toHaveCount(9);
+      await expect(left.locator('[data-album-map-link]')).toHaveCount(4);
       await expect(right.locator('[data-index-group]')).toHaveCount(0);
       continue;
     }
@@ -834,7 +847,7 @@ test('desktop bookmark is a viewport-safe lateral ribbon that mirrors on the bac
     await expectInsideViewport(summary);
 
     await summary.click();
-    const panel = page.getByRole('navigation', { name: 'Índice del álbum' });
+    const panel = page.getByRole('navigation', { name: 'Índice global del álbum' });
     await expect(panel).toBeVisible();
     await expectInsideViewport(summary);
     await expectInsideViewport(panel);

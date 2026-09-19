@@ -8,6 +8,7 @@ export interface AlbumDestination {
   kind: NavigationKind;
   navigationLabel?: string;
   categorySlug?: string;
+  categoryLabel?: string;
   categoryIndex?: number;
   spreadIndex?: number;
 }
@@ -31,6 +32,7 @@ export function buildAlbumMap(categories: readonly AlbumMapCategory[]): AlbumDes
       navigationLabel: spread.index === 0 ? data.title : `${data.title} · ${spread.index + 1}`,
       kind: 'category' as const,
       categorySlug: data.slug,
+      categoryLabel: data.title,
       categoryIndex: categoryIndex + 1,
       spreadIndex: spread.index + 1,
     })),
@@ -44,4 +46,11 @@ export function buildAlbumMap(categories: readonly AlbumMapCategory[]): AlbumDes
     { href: '/contacto/', label: 'Contacto', kind: 'section' },
     { href: '/contraportada/', label: 'Contraportada', kind: 'back-cover' },
   ];
+}
+
+
+export function getPortfolioEditorialMap(
+  items: readonly AlbumDestination[],
+): AlbumDestination[] {
+  return items.filter((item) => Boolean(item.categorySlug));
 }

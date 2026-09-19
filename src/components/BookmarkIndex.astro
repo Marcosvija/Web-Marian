@@ -14,9 +14,9 @@ const { items, currentPath } = Astro.props;
   <summary>
     <span class="bookmark-ribbon"><span class="bookmark-ribbon-label">Índice</span></span>
   </summary>
-  <nav class="bookmark-panel" aria-label="Índice del álbum" data-album-map-view="bookmark">
-    <p class="bookmark-heading">Atrapando instantes</p>
-    <AlbumMapList items={items} currentPath={currentPath} ariaLabel="Mapa completo del álbum" />
+  <nav class="bookmark-panel" aria-label="Índice global del álbum" data-album-map-view="bookmark">
+    <p class="bookmark-heading">Índice del álbum</p>
+    <AlbumMapList items={items} currentPath={currentPath} ariaLabel="Recorrido completo del álbum" />
   </nav>
 </details>
 

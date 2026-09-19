@@ -36,13 +36,18 @@ for (const item of items) {
 >
   <div class="album-page album-page-left">
     <header class="section-heading">
-      <p class="eyebrow">Índice</p>
+      <p class="eyebrow">Índice fotográfico</p>
       <h1 id="portfolio-title">Atrapando instantes</h1>
     </header>
     <div class="index-groups" data-index-groups>
       {groups.map((group) => (
         <div class="index-group" data-index-group>
-          <AlbumMapList items={group} currentPath={currentPath} ariaLabel={group[0]?.label ?? 'Mapa del álbum'} showCategoryNumbers />
+          <AlbumMapList
+            items={group}
+            currentPath={currentPath}
+            ariaLabel={`Categoría fotográfica: ${group[0]?.categoryLabel ?? group[0]?.label ?? 'Sin título'}`}
+            showCategoryNumbers
+          />
         </div>
       ))}
     </div>

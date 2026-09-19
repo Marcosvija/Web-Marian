@@ -197,7 +197,7 @@ test('no-JS back-cover index remains exposed and opens inward without scrolling 
   const book = (await page.locator('[data-album-object]').boundingBox())!;
   expect(label.x + label.width).toBeLessThan(book.x);
   await summary.click();
-  const panel = page.getByRole('navigation', { name: 'Índice del álbum' });
+  const panel = page.getByRole('navigation', { name: 'Índice global del álbum' });
   expect(await panel.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
   await panel.getByRole('link', { name: 'Portada', exact: true }).click();
   await expect(page).toHaveURL(/\/$/);

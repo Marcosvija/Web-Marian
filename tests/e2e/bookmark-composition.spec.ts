@@ -226,9 +226,9 @@ test('index composition measures header and whole groups for short, medium, full
     await page.goto(`/test-fixtures/album-index/${size}/`);
     const index = page.locator('[data-album-map-view="index"]');
     const hrefs = (selector: string) => page.locator(selector).evaluateAll(links => links.map(link => link.getAttribute('href')));
-    const expected = await hrefs('[data-album-map-view="bookmark"] [data-album-map-link]');
+    const expected = await hrefs('[data-album-map-view="bookmark"] [data-bookmark-kind="category"] [data-album-map-link]');
     expect(await hrefs('[data-album-map-view="index"] [data-album-map-link]')).toEqual(expected);
-    await expect(index.locator('[aria-current="page"]')).toHaveAttribute('href', '/portfolio/');
+    await expect(index.locator('[aria-current="page"]')).toHaveCount(0);
     await expect(index).toHaveAttribute('data-index-layout', size === 'overflow' ? 'flow' : 'spread');
     const layout = await index.evaluate(root => [...root.querySelectorAll(':scope > .album-page')].filter(el => getComputedStyle(el).display !== 'none').map(page => {
       const box = page.getBoundingClientRect(); const style = getComputedStyle(page);
@@ -270,7 +270,7 @@ test('index and widened ribbon remain readable without JS', async ({ browser }) 
   const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 1024, height: 768 } });
   const page = await context.newPage();
   await page.goto('/portfolio/');
-  await expect(page.locator('[data-album-map-view="index"] [data-album-map-link]')).toHaveCount(9);
+  await expect(page.locator('[data-album-map-view="index"] [data-album-map-link]')).toHaveCount(4);
   const index = page.locator('[data-album-map-view="index"]');
   expect(await index.evaluate(el => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1);
   await page.goto('/contraportada/');
@@ -279,7 +279,7 @@ test('index and widened ribbon remain readable without JS', async ({ browser }) 
   const box = (await label.boundingBox())!;
   expect(box.x).toBeGreaterThan(8);
   await page.locator('[data-bookmark-index] summary').click();
-  await page.getByRole('navigation', { name: 'Índice del álbum' }).getByRole('link', { name: 'Atrapando instantes' }).click();
+  await page.getByRole('navigation', { name: 'Índice global del álbum' }).getByRole('link', { name: 'Atrapando instantes' }).click();
   await expect(page).toHaveURL('/portfolio/');
   await context.close();
 });
