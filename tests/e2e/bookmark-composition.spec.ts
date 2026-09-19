@@ -250,7 +250,8 @@ test('index composition measures header and whole groups for short, medium, full
     }
     if (layout[1]?.groups.length) {
       expect(layout[1].justify).toBe('flex-start');
-      expect(Math.abs(layout[1].groups[0]!.box.top - layout[1].box.top - layout[1].top)).toBeLessThan(2);
+      expect(layout[0]?.groups.length).toBeGreaterThan(0);
+      expect(Math.abs(layout[1].groups[0]!.box.top - layout[0]!.groups[0]!.box.top)).toBeLessThan(2);
     }
     for (const slug of await index.locator('[data-album-map-category]').evaluateAll(items => [...new Set(items.map(item => item.getAttribute('data-album-map-category')))])) {
       expect(await index.locator(`[data-album-map-category="${slug}"]`).evaluateAll(items => new Set(items.map(item => item.closest('[data-index-group]'))).size)).toBe(1);

@@ -15,6 +15,7 @@
     };
     if (getComputedStyle(root).getPropertyValue('--index-spread-mode').trim() !== '1') {
       root.dataset.indexLayout = 'flow';
+      right.style.removeProperty('margin-block-start');
       restoreFocus();
       return;
     }
@@ -27,6 +28,8 @@
       return { capacity: bottom - container.getBoundingClientRect().top, occupied: container.getBoundingClientRect().top - top, height: bottom - top };
     };
     const leftSpace = available(left);
+    // Continue at the same editorial list line as the left page, below its heading.
+    right.style.marginBlockStart = `${leftSpace.occupied}px`;
     const rightSpace = available(right);
     const heights = groups.map(group => group.getBoundingClientRect().height);
     const gap = parseFloat(getComputedStyle(left).rowGap) || 0;
@@ -38,13 +41,17 @@
       const rightHeight = height(heights.slice(index));
       if (leftHeight > leftSpace.capacity || rightHeight > rightSpace.capacity) continue;
       // Balance occupied space, including the title and its actual margins.
-      const difference = Math.abs((leftSpace.occupied + leftHeight) / leftSpace.height - rightHeight / rightSpace.height);
+      const difference = Math.abs(
+        (leftSpace.occupied + leftHeight) / leftSpace.height -
+        (rightSpace.occupied + rightHeight) / rightSpace.height,
+      );
       if (difference < best) { best = difference; split = index; }
     }
     if (split < 0) {
       // Never crop a group or invent extra routes when a two-page sheet is full.
       // The same natural reading flow is available without JS and on mobile.
       root.dataset.indexLayout = 'flow';
+      right.style.removeProperty('margin-block-start');
     } else {
       right.append(...groups.slice(split));
     }
