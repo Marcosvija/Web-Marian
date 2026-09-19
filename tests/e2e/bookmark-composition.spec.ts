@@ -169,6 +169,86 @@ test('cover turns keep the ribbon inserted in real paper, including both sides o
   await testInfo.attach('ribbon-paper-cross-sections.json', { body: JSON.stringify(evidence, null, 2), contentType: 'application/json' });
 });
 
+test('open-back only exposes the right-facing ribbon while real paper covers its insertion edge', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Physical open-back probe uses desktop mode.');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/contraportada/');
+  const control = page.locator('[data-page-direction="previous"]');
+  await control.hover();
+  await expect(page.locator('[data-cover-ready="true"]')).toBeAttached();
+  const box = (await control.boundingBox())!;
+  const width = (await page.locator('.album-stage').boundingBox())!.width / 2;
+  const x = box.x + 10;
+  const y = box.y + box.height - 10;
+  const evidence = [];
+
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (const progress of [0.35, 0.5, 0.6, 0.7, 0.8, 0.9, 0.97]) {
+    await page.mouse.move(x + width * progress, y - 70, { steps: 8 });
+    await expect(page.locator('[data-cover-active="true"]')).toBeAttached();
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+
+    const probe = await page.evaluate(() => {
+      const host = document.querySelector<HTMLElement>('[data-cover-active="true"]')!;
+      const marker = document.querySelector<HTMLElement>('[data-bookmark-index]')!;
+      const ribbon = marker.querySelector<HTMLElement>('.bookmark-ribbon')!;
+      const ribbonBox = ribbon.getBoundingClientRect();
+      const left = marker.dataset.bookmarkSide === 'left';
+      const inert = [host, ...host.querySelectorAll<HTMLElement>('[inert]')];
+      const blanks = [...host.querySelectorAll<HTMLElement>('.album-cover-blank-page')];
+      const previousBlankPointerEvents = blanks.map(element => element.style.pointerEvents);
+
+      inert.forEach(element => element.removeAttribute('inert'));
+      host.style.pointerEvents = 'auto';
+      blanks.forEach(element => { element.style.pointerEvents = 'none'; });
+
+      const topPaperAt = (sampleX: number, sampleY: number) => {
+        const top = document.elementFromPoint(sampleX, sampleY);
+        const surface = top?.closest<HTMLElement>('[data-cover-page-wrapper]');
+        return Boolean(surface && host.contains(surface) && !surface.classList.contains('album-cover-blank-page'));
+      };
+      const insertionX = left ? ribbonBox.right - 6 : ribbonBox.left + 6;
+      const insertionCovered = [0.1, 0.45, 0.8].map(
+        fraction => topPaperAt(insertionX, ribbonBox.top + ribbonBox.height * fraction),
+      );
+
+      host.style.removeProperty('pointer-events');
+      blanks.forEach((element, index) => {
+        const value = previousBlankPointerEvents[index];
+        if (value) element.style.pointerEvents = value;
+        else element.style.removeProperty('pointer-events');
+      });
+      inert.forEach(element => element.setAttribute('inert', ''));
+
+      return {
+        side: marker.dataset.bookmarkSide,
+        insertionCovered,
+        ribbon: ribbonBox.toJSON(),
+      };
+    });
+
+    if (probe.side === 'right') {
+      expect(probe.insertionCovered, `open-back ${progress}`).toEqual([true, true, true]);
+    }
+    evidence.push({ progress, ...probe });
+  }
+
+  expect(evidence.some(sample => sample.side === 'right')).toBe(true);
+  await testInfo.attach('open-back-ribbon-support.json', {
+    body: JSON.stringify(evidence, null, 2),
+    contentType: 'application/json',
+  });
+
+  // A cancelled reopening must return the ribbon to the closed back-cover edge.
+  await page.mouse.move(x, y, { steps: 12 });
+  await page.mouse.up();
+  await expect(page.locator('[data-cover-active="true"]')).toHaveCount(0);
+  await expect(page).toHaveURL('/contraportada/');
+  await expect(page.locator('[data-bookmark-index]')).toHaveAttribute('data-bookmark-side', 'left');
+  await expect(page.locator('[data-bookmark-turning]')).toHaveCount(0);
+});
+
 test('bookmark last turn frame matches first and later destination frames across all six transitions', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium', 'Physical frame handoff uses desktop mode.');
   await page.setViewportSize({ width: 1440, height: 900 });

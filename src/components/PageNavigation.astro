@@ -734,7 +734,8 @@ const nextKicker =
         // sheet, where both ribbon orientations are fully covered by real paper.
         const width = scene.pageWidth * 2;
         let anchor = width * (1 - (front ? 0.25 : 0.75) * closedness);
-        const leftSide = !front && anchor <= shift + scene.pageWidth / 2;
+        const sideBoundary = shift + scene.pageWidth / 2;
+        let leftSide = !front && anchor <= sideBoundary;
         const sourceClosed = object.classList.contains('is-closed-cover');
         const objectLeft = sourceClosed ? width / 4 : 0;
         const objectWidth = sourceClosed ? width / 2 : width;
@@ -764,6 +765,11 @@ const nextKicker =
             return Math.min(width - clipSize, Math.max(stationary, ...intersections(folded, y)));
           }));
           anchor = Math.min(anchor, shift + edge);
+          // open-back can be pulled back under the real fold after the initial
+          // route interpolation has already crossed the nominal hinge. Decide
+          // its orientation from the constrained physical anchor, otherwise a
+          // right-facing ribbon can protrude before the destination edge exists.
+          if (scene.mode === 'open-back') leftSide = anchor <= sideBoundary;
         }
         bookmark.open = false;
         bookmark.dataset.bookmarkTurning = 'true';
