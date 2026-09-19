@@ -1,11 +1,12 @@
 ---
 import PortfolioIndexView from '../../components/PortfolioIndexView.astro';
-import { getOrderedCategories } from '../../lib/categories';
+import { getAlbumMap, getPortfolioEditorialMap } from '../../lib/navigation';
 import AlbumLayout from '../../layouts/AlbumLayout.astro';
 
-const categories = await getOrderedCategories();
+const albumMap = await getAlbumMap();
+const editorialMap = getPortfolioEditorialMap(albumMap);
 ---
 
 <AlbumLayout title="Portfolio — Marian">
-  <PortfolioIndexView categories={categories} />
+  <PortfolioIndexView items={editorialMap} currentPath={Astro.url.pathname} />
 </AlbumLayout>

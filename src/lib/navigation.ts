@@ -1,21 +1,15 @@
 import { getOrderedCategories } from './categories';
+import { buildAlbumMap } from './album-map';
 
-export interface NavigationItem {
-  href: string;
-  label: string;
-  kind: 'section' | 'category';
-}
+export {
+  buildAlbumMap,
+  getPortfolioEditorialMap,
+  type AlbumDestination,
+  type AlbumPage,
+  type NavigationItem,
+  type NavigationKind,
+} from './album-map';
 
-export async function getAlbumNavigation(): Promise<NavigationItem[]> {
-  const categories = await getOrderedCategories();
-
-  return [
-    { href: '/sobre-mi/', label: 'Quién soy', kind: 'section' },
-    ...categories.map(({ data }) => ({
-      href: `/portfolio/${data.slug}/`,
-      label: data.title,
-      kind: 'category' as const,
-    })),
-    { href: '/contacto/', label: 'Contacto', kind: 'section' },
-  ];
+export async function getAlbumMap() {
+  return buildAlbumMap(await getOrderedCategories());
 }

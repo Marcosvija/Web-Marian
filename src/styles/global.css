@@ -20,12 +20,11 @@
 }
 
 html {
-  min-width: 20rem;
   scroll-behavior: smooth;
 }
 
 body {
-  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   background:
     linear-gradient(90deg, transparent 49.9%, rgb(57 45 36 / 0.035) 50%, transparent 50.1%),
@@ -34,6 +33,12 @@ body {
 
 body:has(dialog[open]) {
   overflow: hidden;
+}
+
+/* Temporary development/QA canvas; production HTML never opts into it. */
+html[data-qa-canvas],
+html[data-qa-canvas] body {
+  background: #d8d9d8;
 }
 
 a {
@@ -79,15 +84,17 @@ a {
 }
 
 .site-shell {
-  min-height: 100vh;
-  padding: 1rem;
+  min-height: 100dvh;
+  padding: 1rem 1.5rem 1.5rem;
 }
 
 .site-header {
+  position: absolute;
+  inset-block-start: -3.25rem;
+  inset-inline-start: 0;
+  z-index: 30;
   display: flex;
-  width: min(100%, 88rem);
   min-height: 3rem;
-  margin-inline: auto;
   align-items: center;
 }
 
@@ -99,6 +106,10 @@ a {
   text-decoration: none;
   font-weight: 650;
   letter-spacing: 0.04em;
+}
+
+.site-header[data-cover-home-motion] {
+  visibility: visible;
 }
 
 .site-home span[aria-hidden] {
@@ -114,11 +125,20 @@ a {
 
 .album-frame {
   container: album / inline-size;
-  width: min(100%, 88rem);
-  min-height: calc(100vh - 6rem);
-  margin-inline: auto;
   display: grid;
-  align-items: stretch;
+  width: 100%;
+  min-height: calc(100dvh - 5.5rem);
+  margin: 3rem auto 0;
+  place-items: center;
+}
+
+/* The height-constrained book scale applies only where a spread can fit.
+   Short landscape/reflow viewports keep the full useful reading width. */
+@media (min-width: 59rem) and (min-height: 38rem) {
+  .album-frame {
+    /* 44px of usable ribbon + 8px safety on either physical edge. */
+    width: min(calc(100% - 3.5rem), calc(177.7778dvh - 9.7778rem));
+  }
 }
 
 .sheet {
@@ -154,29 +174,19 @@ h1 {
   letter-spacing: -0.045em;
 }
 
-.primary-action,
-.text-action {
+.primary-action {
   display: inline-flex;
   min-height: 2.75rem;
+  margin-block-start: 2rem;
+  padding: 0.75rem 1.25rem;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  font-weight: 700;
-}
-
-.primary-action {
-  margin-block-start: 2rem;
-  padding: 0.75rem 1.25rem;
   border: 1px solid var(--ink);
   background: var(--ink);
   color: white;
+  font-weight: 700;
   text-decoration: none;
-}
-
-.text-action {
-  align-self: end;
-  justify-self: start;
-  margin-block-start: 2rem;
 }
 
 .cover-view {
@@ -189,6 +199,14 @@ h1 {
 .cover-copy {
   position: relative;
   z-index: 1;
+}
+
+.back-cover-action {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  height: 100%;
+  place-items: end start;
 }
 
 .cover-mark {
@@ -231,35 +249,78 @@ h1 {
   color: var(--muted);
 }
 
-.category-list,
+.album-map-list,
 .contact-list {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.category-list a,
+.album-map-list a,
 .contact-list a {
-  display: grid;
-  min-height: 3.5rem;
+  min-height: 2.75rem;
   align-items: center;
   border-block-end: 1px solid var(--line);
   text-decoration: none;
 }
 
-.category-list a {
-  grid-template-columns: 3rem 1fr auto;
-  gap: 1rem;
+.album-map-list a {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  padding-inline: 0.25rem;
 }
 
-.category-list a:hover,
+.contact-list a {
+  display: grid;
+  min-height: 3.5rem;
+}
+
+.album-map-list a:hover,
 .contact-list a:hover {
   background: rgb(88 56 47 / 0.06);
 }
 
-.category-number {
+.album-map-list a[aria-current="page"] {
+  background: rgb(88 56 47 / 0.075);
+  font-weight: 800;
+}
+
+.album-map-list .is-cover-destination a {
+  font-family: Georgia, serif;
+  font-style: italic;
+}
+
+.album-map-list .is-category-primary a {
+  font-weight: 700;
+}
+
+.album-map-list .is-category-secondary a {
+  padding-inline-start: 1.5rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.album-map-list-numbered .is-category-primary a {
+  padding-inline-start: 0.5rem;
+}
+
+.album-map-list-numbered .is-category-secondary a {
+  padding-inline-start: 3.35rem;
+}
+
+.album-map-number {
+  width: 2.2rem;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+
+.album-map-label {
+  min-width: 0;
+}
+
+.portfolio-index .album-map-list {
+  width: 100%;
 }
 
 .section-heading {
@@ -270,6 +331,13 @@ h1 {
   margin-block-start: 1rem;
   color: var(--muted);
   font-size: 1.05rem;
+}
+
+.category-spread-count {
+  margin: 0.75rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .photo-grid {
@@ -362,15 +430,19 @@ h1 {
 }
 
 .bookmark-index summary {
+  position: relative;
   display: grid;
   min-width: 4.5rem;
   min-height: 2.75rem;
   padding-inline: 1rem;
   place-items: center;
-  border: 1px solid var(--ink);
+  border: 1px solid rgb(88 56 47 / 0.34);
   border-radius: 0.2rem;
-  background: var(--ink);
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 0.16), transparent 38%),
+    #8f6859;
   color: white;
+  box-shadow: 0 0.28rem 0.75rem rgb(42 34 28 / 0.16);
   cursor: pointer;
   font-weight: 750;
   list-style: none;
@@ -380,6 +452,11 @@ h1 {
   display: none;
 }
 
+.bookmark-ribbon-label {
+  position: relative;
+  z-index: 1;
+}
+
 .bookmark-panel {
   position: absolute;
   inset: auto 0 calc(100% + 0.5rem) auto;
@@ -387,8 +464,11 @@ h1 {
   max-height: min(34rem, calc(100vh - 7rem));
   overflow: auto;
   padding: 1.25rem;
-  border: 1px solid var(--line);
-  background: var(--paper-raised);
+  border: 1px solid rgb(71 60 51 / 0.22);
+  border-radius: 0.15rem;
+  background:
+    linear-gradient(100deg, rgb(255 255 255 / 0.3), transparent 20%),
+    var(--paper-raised);
   box-shadow: var(--shadow);
 }
 
@@ -398,28 +478,31 @@ h1 {
   font-size: 1.3rem;
 }
 
-.bookmark-panel ul {
+.bookmark-panel .album-map-list {
   margin: 0;
   padding: 0;
-  list-style: none;
 }
 
-.bookmark-panel li.is-category {
-  padding-inline-start: 1rem;
-}
-
-.bookmark-panel a {
+.bookmark-panel .album-map-list a {
   display: flex;
   min-height: 2.75rem;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  padding-inline: 0;
   border-block-end: 1px solid rgb(71 60 51 / 0.12);
-  text-decoration: none;
 }
 
-.bookmark-panel a[aria-current="page"] {
-  font-weight: 800;
+.bookmark-panel .is-category-primary {
+  padding-inline-start: 0.75rem;
+}
+
+.bookmark-panel .is-category-secondary {
+  padding-inline-start: 1.75rem;
+}
+
+.bookmark-panel .is-category-secondary a {
+  padding-inline-start: 0;
 }
 
 .current-marker {
@@ -428,27 +511,206 @@ h1 {
   text-transform: uppercase;
 }
 
-@media (min-width: 64rem) {
-  .bookmark-index {
-    inset-block: 50% auto;
-    inset-inline: auto max(0rem, calc((100vw - 88rem) / 2 - 2.75rem));
-    translate: 0 -50%;
-  }
+@media (min-height: 38rem) {
+  @container album (min-width: 56rem) {
+    .bookmark-index {
+      --bookmark-direction: 1;
+      --bookmark-pull-room: max(0px, calc((100dvw - 100cqi) / 2 - 3.25rem));
+      --bookmark-rest-x: calc(var(--bookmark-direction) * 2.75rem);
+      --bookmark-hover-x: calc(var(--bookmark-direction) * (2.75rem + min(0.375rem, var(--bookmark-pull-room))));
+      --bookmark-open-x: calc(var(--bookmark-direction) * (2.75rem + min(1rem, var(--bookmark-pull-room))));
+      --bookmark-panel-max-height: calc(50dvh + 5.625cqi - 2rem);
+      position: absolute;
+      inset-block-start: 40%;
+      inset-inline: auto 0;
+      /* No stacking context: the real paper covers the inserted ribbon,
+         while the open navigation panel can still sit above the album. */
+      z-index: auto;
+      width: 0;
+      height: 11rem;
+      overflow: visible;
+      pointer-events: none;
+      translate: none;
+    }
 
-  .bookmark-index summary {
-    width: 2.75rem;
-    min-width: 2.75rem;
-    height: 7rem;
-    padding: 1rem 0;
-    border-inline-start: 0;
-    border-radius: 0 0.2rem 0.2rem 0;
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-  }
+    .album-object.is-closed-cover .bookmark-index {
+      --bookmark-pull-room: max(0px, calc((100dvw - 50cqi) / 2 - 3.25rem));
+    }
 
-  .bookmark-panel {
-    inset: 50% calc(100% + 0.5rem) auto auto;
-    translate: 0 -50%;
+    .bookmark-index[data-bookmark-side="left"] {
+      --bookmark-direction: -1;
+      inset-inline: 0 auto;
+    }
+
+    .bookmark-index summary {
+      position: absolute;
+      inset-block-start: 0;
+      inset-inline-end: 0;
+      z-index: 0;
+      display: grid;
+      width: 4.25rem;
+      min-width: 4.25rem;
+      height: 11rem;
+      min-height: 11rem;
+      padding: 0;
+      place-items: center;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+      pointer-events: auto;
+      translate: var(--bookmark-rest-x) 0;
+    }
+
+    .bookmark-index[data-bookmark-viewport-ready] summary {
+      transition: translate 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .bookmark-ribbon {
+      position: absolute;
+      inset: 0 0 0 auto;
+      width: 4rem;
+      border-radius: 0.12rem 0.18rem 0.18rem 0.12rem;
+      background:
+        linear-gradient(90deg, rgb(255 255 255 / 0.18), transparent 30%, rgb(50 35 30 / 0.14) 84%),
+        repeating-linear-gradient(0deg, rgb(255 255 255 / 0.045) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(90deg, rgb(255 255 255 / 0.035) 0 1px, transparent 1px 3px),
+        #8f6859;
+      color: rgb(255 251 246 / 0.98);
+      box-shadow:
+        0.22rem 0.2rem 0.48rem rgb(42 34 28 / 0.22),
+        inset 0.2rem 0 0.3rem rgb(255 255 255 / 0.11),
+        inset -0.22rem 0 0.32rem rgb(42 34 28 / 0.16);
+      clip-path: polygon(0 0, 100% 0, 100% 88%, 50% 100%, 0 88%);
+      pointer-events: none;
+    }
+
+    .bookmark-ribbon::before {
+      content: "";
+      position: absolute;
+      inset-block: 0.5rem 1.05rem;
+      inset-inline-end: 2.5rem;
+      border-inline-start: 1px dashed rgb(255 247 238 / 0.36);
+      filter: drop-shadow(1px 0 0 rgb(55 38 31 / 0.13));
+      pointer-events: none;
+    }
+
+    .bookmark-ribbon-label {
+      position: absolute;
+      /* Physical axes: logical insets rotate with vertical writing mode. */
+      top: 0.5rem;
+      right: 0.5rem;
+      display: grid;
+      width: 1.75rem;
+      height: 9rem;
+      place-items: center;
+      color: rgb(255 252 248 / 0.99);
+      font-size: 1rem;
+      font-weight: 850;
+      letter-spacing: 0.045em;
+      line-height: 1.1;
+      text-shadow: 0 1px 1px rgb(44 29 24 / 0.38);
+      text-transform: uppercase;
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+    }
+
+    .bookmark-index[data-bookmark-side="left"] summary {
+      inset-inline: 0 auto;
+    }
+
+    .bookmark-index[data-bookmark-side="left"] .bookmark-ribbon {
+      inset: 0 auto 0 0;
+      border-radius: 0.18rem 0.12rem 0.12rem 0.18rem;
+      box-shadow:
+        -0.22rem 0.2rem 0.48rem rgb(42 34 28 / 0.22),
+        inset 0.2rem 0 0.3rem rgb(255 255 255 / 0.11),
+        inset -0.22rem 0 0.32rem rgb(42 34 28 / 0.16);
+    }
+
+    .bookmark-index[data-bookmark-side="left"] .bookmark-ribbon::before {
+      inset-inline: 2.5rem auto;
+      filter: drop-shadow(-1px 0 0 rgb(55 38 31 / 0.13));
+    }
+
+    .bookmark-index[data-bookmark-side="left"] .bookmark-ribbon-label {
+      right: auto;
+      left: 0.5rem;
+    }
+
+    .bookmark-index summary:hover,
+    .bookmark-index summary:focus-visible {
+      translate: var(--bookmark-hover-x) 0;
+      filter: brightness(1.025);
+    }
+
+    .bookmark-index[data-bookmark-turning] {
+      visibility: visible;
+      translate: var(--bookmark-scene-x, 0px) 0;
+    }
+
+    .bookmark-index[data-bookmark-turning] summary {
+      translate: var(--bookmark-rest-x) 0;
+      transition: none;
+      pointer-events: none;
+    }
+
+    .bookmark-index[open] summary {
+      translate: var(--bookmark-open-x) 0;
+    }
+
+    .bookmark-index summary:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    .bookmark-panel {
+      inset: 0 0.9rem auto auto;
+      z-index: 32;
+      pointer-events: auto;
+      width: min(23rem, 70cqi, calc(100dvw - 2rem));
+      max-height: min(32rem, var(--bookmark-panel-max-height));
+      overflow: auto;
+      overscroll-behavior: contain;
+      padding: 1.35rem 1.35rem 1.25rem;
+      border: 1px solid rgb(71 60 51 / 0.22);
+      border-radius: 0.16rem 0.08rem 0.08rem 0.16rem;
+      background:
+        linear-gradient(95deg, rgb(255 255 255 / 0.36), transparent 18%),
+        linear-gradient(180deg, rgb(88 56 47 / 0.035), transparent 20%),
+        var(--paper-raised);
+      box-shadow:
+        0 0.78rem 1.75rem rgb(42 34 28 / 0.17),
+        inset 0 0.18rem 0.35rem rgb(255 255 255 / 0.5);
+      transform-origin: right center;
+    }
+
+    .bookmark-index[data-bookmark-side="left"] .bookmark-panel {
+      inset: 0 auto auto 0.9rem;
+      border-radius: 0.08rem 0.16rem 0.16rem 0.08rem;
+      transform-origin: left center;
+    }
+
+    .bookmark-panel::before {
+      content: "";
+      position: absolute;
+      inset-block-start: 1.45rem;
+      inset-inline-end: 0;
+      width: 0.82rem;
+      height: 2.3rem;
+      background:
+        linear-gradient(90deg, var(--paper-raised), rgb(223 214 201 / 0.95));
+      clip-path: polygon(0 0, 100% 18%, 100% 82%, 0 100%);
+      box-shadow: 0.15rem 0 0.26rem rgb(42 34 28 / 0.12);
+      pointer-events: none;
+    }
+
+    .bookmark-index[data-bookmark-side="left"] .bookmark-panel::before {
+      inset-inline: 0 auto;
+      background:
+        linear-gradient(90deg, rgb(223 214 201 / 0.95), var(--paper-raised));
+      clip-path: polygon(100% 0, 0 18%, 0 82%, 100% 100%);
+      box-shadow: -0.15rem 0 0.26rem rgb(42 34 28 / 0.12);
+    }
   }
 }
 
@@ -517,96 +779,78 @@ h1 {
   justify-self: center;
 }
 
-@container album (min-width: 56rem) {
-  .sheet {
-    position: relative;
-  }
-
-  .cover-view,
-  .about-view,
-  .contact-view {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .cover-copy,
-  .about-view > :first-child,
-  .contact-view > :first-child {
-    align-self: center;
-  }
-
-  .about-view .editorial-placeholder,
-  .contact-view .empty-state,
-  .contact-view .contact-list {
-    align-self: center;
-  }
-
-  .about-view .text-action,
-  .contact-view .text-action {
-    grid-column: 2;
-  }
-
-  .photo-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-  }
-
-  .photo-card.is-featured {
-    grid-row: span 2;
-  }
-
-  .photo-card:nth-child(4n + 4) {
-    grid-column: 1 / -1;
-    width: min(72%, 58rem);
-    justify-self: center;
-  }
-
-  .category-pagination {
-    grid-template-areas: "previous index next";
-    grid-template-columns: 1fr auto 1fr;
-    gap: 0.5rem;
-    padding-block-start: 0;
-  }
-
-  .category-pagination-index {
-    justify-content: center;
-    text-align: start;
-  }
-
-  .category-pagination-next,
-  .category-pagination-contact {
-    min-height: 3.5rem;
-    margin-block-start: 0;
-    padding: 0;
-    justify-content: end;
-    background: transparent;
-    color: inherit;
-    font-weight: inherit;
-    text-align: end;
-    text-decoration: underline;
-  }
-
-  .category-pagination-label {
-    display: none;
+@media (min-height: 38rem) {
+  @container album (min-width: 56rem) {
+    .sheet {
+      position: relative;
+    }
+  
+    .about-view,
+    .contact-view {
+      grid-template-columns: 1fr 1fr;
+    }
+  
+    .cover-copy,
+    .about-view > :first-child,
+    .contact-view > :first-child {
+      align-self: center;
+    }
+  
+    .about-view .editorial-placeholder,
+    .contact-view .empty-state,
+    .contact-view .contact-list {
+      align-self: center;
+    }
+  
+    .photo-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
+  
+    .photo-card.is-featured {
+      grid-row: span 2;
+    }
+  
+    .photo-card:nth-child(4n + 4) {
+      grid-column: 1 / -1;
+      width: min(72%, 58rem);
+      justify-self: center;
+    }
+  
+    .category-pagination {
+      grid-template-areas: "previous index next";
+      grid-template-columns: 1fr auto 1fr;
+      gap: 0.5rem;
+      padding-block-start: 0;
+    }
+  
+    .category-pagination-index {
+      justify-content: center;
+      text-align: start;
+    }
+  
+    .category-pagination-next,
+    .category-pagination-contact {
+      min-height: 3.5rem;
+      margin-block-start: 0;
+      padding: 0;
+      justify-content: end;
+      background: transparent;
+      color: inherit;
+      font-weight: inherit;
+      text-align: end;
+      text-decoration: underline;
+    }
+  
+    .category-pagination-label {
+      display: none;
+    }
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .sheet {
-    animation: sheet-enter 180ms ease-out both;
-  }
-
   .photo-trigger img {
     transition: filter 160ms ease;
-  }
-}
-
-@keyframes sheet-enter {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
   }
 }
 

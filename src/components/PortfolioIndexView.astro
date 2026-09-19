@@ -1,34 +1,66 @@
 ---
-import type { CategoryEntry } from '../lib/categories';
+import AlbumMapList from './AlbumMapList.astro';
+import type { AlbumDestination } from '../lib/album-map';
 
 interface Props {
-  categories: CategoryEntry[];
+  items: AlbumDestination[];
+  currentPath: string;
 }
 
-const { categories } = Astro.props;
+const { items, currentPath } = Astro.props;
+
+const groups: AlbumDestination[][] = [];
+for (const item of items) {
+  const previousGroup = groups.at(-1);
+  const previous = previousGroup?.[0];
+  if (
+    item.kind === 'category' &&
+    item.categorySlug &&
+    previous?.kind === 'category' &&
+    previous.categorySlug === item.categorySlug
+  ) {
+    previousGroup?.push(item);
+  } else {
+    groups.push([item]);
+  }
+}
+
 ---
 
-<section class="portfolio-index sheet" aria-labelledby="portfolio-title">
-  <header class="section-heading">
-    <p class="eyebrow">Índice</p>
-    <h1 id="portfolio-title">Atrapando instantes</h1>
-  </header>
-
-  {categories.length > 0 ? (
-    <ol class="category-list">
-      {categories.map(({ data }, index) => (
-        <li>
-          <a href={`/portfolio/${data.slug}/`}>
-            <span class="category-number">{String(index + 1).padStart(2, '0')}</span>
-            <span>{data.title}</span>
-            <span aria-hidden="true">→</span>
-          </a>
-        </li>
+<section
+  class="portfolio-index sheet album-spread"
+  aria-labelledby="portfolio-index-label portfolio-title"
+  data-album-spread
+  data-album-map-view="index"
+  data-index-layout="flow"
+>
+  <div class="album-page album-page-left">
+    <header class="section-heading">
+      <p class="eyebrow" id="portfolio-index-label">Índice fotográfico</p>
+      <h1 id="portfolio-title">Atrapando instantes</h1>
+    </header>
+    <div class="index-groups" data-index-groups>
+      {groups.map((group) => (
+        <div class="index-group" data-index-group>
+          <AlbumMapList
+            items={group}
+            currentPath={currentPath}
+            ariaLabel={`Categoría fotográfica: ${group[0]?.categoryLabel ?? group[0]?.label ?? 'Sin título'}`}
+            showCategoryNumbers
+          />
+        </div>
       ))}
-    </ol>
-  ) : (
-    <p class="empty-state" role="status">La selección fotográfica se incorporará desde contenido validado.</p>
-  )}
+    </div>
+  </div>
 
-  <a class="text-action" href="/contacto/">Contacto <span aria-hidden="true">→</span></a>
+  <div class="album-page album-page-right">
+    <div class="index-groups" data-index-groups></div>
+  </div>
 </section>
+
+<script is:inline>
+  // Synchronous layout after this section is parsed, before its first paint.
+  document.dispatchEvent(new CustomEvent('album:compose-index', {
+    detail: document.currentScript.previousElementSibling,
+  }));
+</script>

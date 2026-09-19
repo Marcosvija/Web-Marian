@@ -1,0 +1,36 @@
+---
+import CategoryView from '../../../components/CategoryView.astro';
+import { getCategorySpreads } from '../../../lib/category-layout';
+import { getOrderedCategories, type CategoryEntry } from '../../../lib/categories';
+import AlbumLayout from '../../../layouts/AlbumLayout.astro';
+
+interface Props {
+  category: CategoryEntry;
+  spreadIndex: number;
+}
+
+export async function getStaticPaths() {
+  const categories = await getOrderedCategories();
+
+  return categories.flatMap((category) =>
+    getCategorySpreads(category.data.photos)
+      .slice(1)
+      .map((spread) => ({
+        params: {
+          slug: category.data.slug,
+          spread: String(spread.index + 1),
+        },
+        props: {
+          category,
+          spreadIndex: spread.index,
+        },
+      })),
+  );
+}
+
+const { category, spreadIndex } = Astro.props;
+---
+
+<AlbumLayout title={`${category.data.title} — Pliego ${spreadIndex + 1} — Marian`} description={category.data.description}>
+  <CategoryView category={category} spreadIndex={spreadIndex} />
+</AlbumLayout>

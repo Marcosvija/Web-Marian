@@ -1,0 +1,70 @@
+---
+import type { AlbumDestination } from '../lib/album-map';
+
+interface Props {
+  items: AlbumDestination[];
+  currentPath: string;
+  ariaLabel: string;
+  showCategoryNumbers?: boolean;
+}
+
+const { items, currentPath, ariaLabel, showCategoryNumbers = false } = Astro.props;
+const normalizePath = (path: string) => (path.endsWith('/') ? path : `${path}/`);
+const activePath = normalizePath(currentPath);
+---
+
+<ol
+  class:list={[
+    'album-map-list',
+    {
+      'album-map-list-numbered': showCategoryNumbers,
+      'category-list': showCategoryNumbers,
+    },
+  ]}
+  aria-label={ariaLabel}
+  data-album-map-list
+>
+  {items.map((item) => {
+    const isCurrent = activePath === normalizePath(item.href);
+    const isCover = item.kind === 'cover' || item.kind === 'back-cover';
+    const isCategory = item.kind === 'category';
+    const isSecondarySpread = isCategory && (item.spreadIndex ?? 1) > 1;
+    const isPrimaryCategory = isCategory && !isSecondarySpread;
+    const editorialAccessibleLabel =
+      showCategoryNumbers && isSecondarySpread && item.categoryLabel
+        ? `${item.categoryLabel} · ${item.label}`
+        : undefined;
+    return (
+      <li
+        data-album-map-kind={item.kind}
+        data-bookmark-kind={item.kind}
+        data-album-map-category={item.categorySlug}
+        data-album-map-spread={item.spreadIndex}
+        class:list={[
+          'album-map-item',
+          {
+            'is-category': isCategory,
+            'is-category-primary': isPrimaryCategory,
+            'is-category-secondary': isSecondarySpread,
+            'is-cover-destination': isCover,
+          },
+        ]}
+      >
+        <a
+          href={item.href}
+          aria-label={editorialAccessibleLabel}
+          aria-current={isCurrent ? 'page' : undefined}
+          data-album-map-link
+        >
+          {showCategoryNumbers && isPrimaryCategory && (
+            <span class="album-map-number" aria-hidden="true">
+              {String(item.categoryIndex ?? 0).padStart(2, '0')}
+            </span>
+          )}
+          <span class="album-map-label">{item.label}</span>
+          {isCurrent && <span class="current-marker">Actual</span>}
+        </a>
+      </li>
+    );
+  })}
+</ol>
