@@ -26,6 +26,11 @@ declare module 'page-flip' {
       } | null;
     };
     getUI(): { getDistElement(): HTMLElement };
+    getRender(): {
+      setBottomPage(page: null): void;
+      setFlippingPage(page: null): void;
+      clearShadow(): void;
+    };
     on(eventName: string, callback: (event: PageFlipEvent<any>) => void): PageFlip;
   }
 }

@@ -1,0 +1,26 @@
+---
+interface Props { side: 'left' | 'right' }
+const { side } = Astro.props;
+const light = `cover-fold-${side}-light`;
+const contact = `cover-fold-${side}-contact`;
+---
+<!-- One material corner, shared by stable controls and the renderer's cover.
+     Only its free return edge changes on hover; the curved crease stays put. -->
+<svg class="cover-fold" data-fold-side={side} viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id={light} x1="0" y1="1" x2="0.85" y2="0">
+      <stop offset="0" stop-color="#d8d0c3" />
+      <stop offset="0.38" stop-color="var(--paper-raised)" />
+      <stop offset="0.72" stop-color="#eee8dd" />
+      <stop offset="1" stop-color="#c9bfb0" />
+    </linearGradient>
+    <linearGradient id={contact} x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#2a221c" stop-opacity="0" />
+      <stop offset="0.45" stop-color="#2a221c" stop-opacity="0.24" />
+      <stop offset="1" stop-color="#2a221c" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+  <path class="cover-fold-contact" d="M 1,47 C 21,44 44,21 47,1" fill="none" stroke={`url(#${contact})`} stroke-width="3" />
+  <path class="cover-fold-return" d="M 1,47 C 21,44 44,21 47,1 C 45,16 29,13 21,21 C 13,29 16,43 1,47 Z" fill={`url(#${light})`} />
+  <path class="cover-fold-crease" d="M 1,47 C 21,44 44,21 47,1" fill="none" stroke={`url(#${contact})`} stroke-width="0.7" />
+</svg>

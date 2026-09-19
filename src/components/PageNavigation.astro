@@ -1,5 +1,6 @@
 ---
 import type { AlbumPage } from '../lib/navigation';
+import CoverFold from './CoverFold.astro';
 
 interface Props {
   pages: AlbumPage[];
@@ -44,6 +45,7 @@ const nextKicker =
         data-page-direction="previous"
         data-page-destination={previousLabel}
       >
+        {currentPath === '/contraportada/' && <CoverFold side="left" />}
         <span class="page-navigation-arrow" aria-hidden="true">←</span>
         <span class="page-navigation-copy">
           <span class="page-navigation-kicker">{previousKicker}</span>
@@ -61,6 +63,7 @@ const nextKicker =
         data-page-direction="next"
         data-page-destination={nextLabel}
       >
+        {currentPath === '/' && <CoverFold side="right" />}
         <span class="page-navigation-copy">
           <span class="page-navigation-kicker">{nextKicker}</span>
           <span>{nextLabel}</span>
@@ -102,6 +105,9 @@ const nextKicker =
     dragStartClientX: number | null;
     visualProgress: number;
     closingSurface: HTMLElement | null;
+    homeOffset: { x: number; y: number };
+    reveal: Promise<void> | null;
+    foldInset: number;
   }
 
   const focusKey = 'album-page-navigation-focus';
@@ -264,7 +270,7 @@ const nextKicker =
     return wrapper;
   };
 
-  const createFlexibleCoverPage = (source: HTMLElement, label: string) => {
+  const createFlexibleCoverPage = (source: HTMLElement, label: string, fold: SVGElement | null) => {
     const wrapper = document.createElement('div');
     wrapper.className = 'album-cover-page album-cover-flex-page';
     wrapper.dataset.coverPageWrapper = label;
@@ -275,6 +281,21 @@ const nextKicker =
     const surface = sanitizeVisualClone(source.cloneNode(true) as HTMLElement);
     surface.dataset.coverPage = label;
     wrapper.append(surface);
+    if (fold) {
+      // This is part of the cover face: page-flip transforms and clips it with
+      // that face, including the last closing frame. No second interactive link.
+      const corner = fold.cloneNode(true) as SVGElement;
+      corner.querySelectorAll('[id]').forEach(element => {
+        const id = element.id;
+        element.id = `scene-${id}`;
+        corner.querySelectorAll('[fill], [stroke]').forEach(path => {
+          for (const attribute of ['fill', 'stroke']) {
+            if (path.getAttribute(attribute) === `url(#${id})`) path.setAttribute(attribute, `url(#scene-${id})`);
+          }
+        });
+      });
+      wrapper.append(corner);
+    }
     return wrapper;
   };
 
@@ -605,6 +626,22 @@ const nextKicker =
         const pageWidth = stageBox.width / 2;
         if (pageWidth <= 0 || referenceHeight <= 0) return null;
 
+        // Measure the destination's real layout classes in this same container.
+        // No cloned header/anchor and no front/back direction assumption.
+        const destinationObject = parsed.querySelector<HTMLElement>('[data-album-object]');
+        if (!destinationObject) return null;
+        const measure = document.createElement('div');
+        measure.className = destinationObject.className;
+        measure.style.cssText = `position:absolute;inset:0;visibility:hidden;pointer-events:none;height:${referenceHeight}px`;
+        measure.setAttribute('inert', '');
+        stage.append(measure);
+        const targetBox = measure.getBoundingClientRect();
+        const sourceBox = object.getBoundingClientRect();
+        const homeOffset = { x: targetBox.left - sourceBox.left, y: targetBox.top - sourceBox.top };
+        measure.remove();
+        const fold = (opening ? object : parsed).querySelector<SVGElement>('.cover-fold');
+        if (!fold) return null;
+
         const host = document.createElement('div');
         pendingHost = host;
         host.className = 'album-cover-curl-renderer';
@@ -620,7 +657,7 @@ const nextKicker =
         if (mode === 'open-front' || mode === 'close-front') {
           pages = [
             createCoverBlankPage('front-placeholder'),
-            createFlexibleCoverPage(cover, 'front-cover'),
+            createFlexibleCoverPage(cover, 'front-cover', fold),
             createCoverSpreadPage(left, 'spread-left'),
             createCoverSpreadPage(right, 'spread-right'),
           ];
@@ -630,7 +667,7 @@ const nextKicker =
           pages = [
             createCoverSpreadPage(left, 'spread-left'),
             createCoverSpreadPage(right, 'spread-right'),
-            createFlexibleCoverPage(cover, 'back-cover'),
+            createFlexibleCoverPage(cover, 'back-cover', fold),
             createCoverBlankPage('back-placeholder'),
           ];
           startPage = mode === 'close-back' ? 0 : 2;
@@ -682,6 +719,9 @@ const nextKicker =
           lastPoint: null,
           dragStartClientX: null,
           visualProgress: 0,
+          homeOffset,
+          reveal: null,
+          foldInset: parseFloat(getComputedStyle(host.querySelector('.cover-fold')!).width) / 2,
           closingSurface: opening ? null : host.querySelector<HTMLElement>(
             `[data-cover-page="${mode === 'close-front' ? 'spread-left' : 'spread-right'}"]`,
           ),
@@ -726,6 +766,11 @@ const nextKicker =
 
     if (scene.host.classList.contains('is-active')) {
       const object = getObject();
+      const header = object?.querySelector<HTMLElement>('.site-header');
+      if (header) {
+        header.dataset.coverHomeMotion = '';
+        header.style.translate = `${scene.homeOffset.x * clamped}px ${scene.homeOffset.y * clamped}px`;
+      }
       const bookmark = object?.querySelector<HTMLDetailsElement>('[data-bookmark-index]');
       if (object && bookmark) {
         // The marker is behind the actual scene pages, never behind a fake plate.
@@ -807,13 +852,19 @@ const nextKicker =
     scene: CoverScene,
     clientX: number,
     clientY: number,
+    keepRestingFold = true,
   ) => {
     const dist = scene.flip.getUI().getDistElement();
     const rect = dist.getBoundingClientRect();
 
+    const opening = scene.mode === 'open-front' || scene.mode === 'open-back';
+    // The resting corner is already lifted. Start/cancel at its measured
+    // footprint, so handing it to the renderer never passes through flat paper.
+    const inset = opening && keepRestingFold ? scene.foldInset : 1;
     return {
-      x: Math.max(1, Math.min(clientX - rect.left, rect.width - 1)),
-      y: Math.max(1, Math.min(clientY - rect.top, rect.height - 1)),
+      x: Math.max(scene.direction === 'previous' ? inset : 1,
+        Math.min(clientX - rect.left, rect.width - (scene.direction === 'next' ? inset : 1))),
+      y: Math.max(1, Math.min(clientY - rect.top, rect.height - inset)),
     };
   };
 
@@ -829,11 +880,7 @@ const nextKicker =
     const stage = getStage();
     if (!stage) return;
 
-    stage.classList.add('is-cover-turning');
-    scene.host.classList.add('is-active');
-    scene.host.dataset.coverActive = 'true';
-
-    const start = coverRendererPoint(scene, startClientX, startClientY);
+    const start = coverRendererPoint(scene, startClientX, startClientY, false);
     const current = coverRendererPoint(scene, currentClientX, currentClientY);
     scene.dragStartClientX = startClientX;
     scene.flip.startUserTouch(start);
@@ -841,7 +888,18 @@ const nextKicker =
     scene.lastPoint = current;
     updateCoverSceneSpatialProgress(scene, coverProgressFromClientX(scene, currentClientX));
     scene.started = true;
-    document.documentElement.dataset.albumCoverActive = scene.mode;
+    // Keep the stable corner until page-flip has painted the first curved face.
+    // Reveal that face and hide the source in the same frame, never a flat gap.
+    scene.reveal = new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (scene.host.isConnected) {
+        stage.classList.add('is-cover-turning');
+        scene.host.classList.add('is-active');
+        scene.host.dataset.coverActive = 'true';
+        updateCoverSceneSpatialProgress(scene, scene.visualProgress);
+        document.documentElement.dataset.albumCoverActive = scene.mode;
+      }
+      resolve();
+    })));
   };
 
   const moveCoverTurn = (
@@ -859,6 +917,11 @@ const nextKicker =
 
   const destroyCoverScene = (scene: CoverScene) => {
     resetBookmarkScene();
+    const header = getObject()?.querySelector<HTMLElement>('.site-header');
+    if (header) {
+      delete header.dataset.coverHomeMotion;
+      header.style.removeProperty('translate');
+    }
     getStage()?.classList.remove('is-cover-turning');
     delete document.documentElement.dataset.albumCoverActive;
     preparedCoverScenes.delete(scene.link);
@@ -925,18 +988,22 @@ const nextKicker =
   ) => {
     if (!scene.host.isConnected || !scene.started || scene.settling) return;
     scene.settling = true;
+    await scene.reveal;
+    if (!scene.host.isConnected) return;
 
     const dist = scene.flip.getUI().getDistElement();
     const rect = dist.getBoundingClientRect();
     const clamped = Math.max(0, Math.min(progress, 1));
+    const opening = scene.mode === 'open-front' || scene.mode === 'open-back';
+    const inset = (commit ? !opening : opening) ? scene.foldInset : 1;
     const target = commit
       ? {
-          x: scene.direction === 'next' ? 1 : rect.width - 1,
-          y: rect.height - 1,
+          x: scene.direction === 'next' ? inset : rect.width - inset,
+          y: rect.height - inset,
         }
       : {
-          x: scene.direction === 'next' ? rect.width - 1 : 1,
-          y: rect.height - 1,
+          x: scene.direction === 'next' ? rect.width - inset : inset,
+          y: rect.height - inset,
         };
     const duration = commit
       ? Math.round(260 + (1 - clamped) * 320)
@@ -951,7 +1018,18 @@ const nextKicker =
     }
 
     scene.flip.turnToPage(scene.endPage);
-    scene.host.dataset.coverSettled = 'true';
+    // turnToPage alone leaves page-flip's dragged face/shadows alive. Retire
+    // them through its renderer API, then reveal the cover's resting fold in
+    // the same paint as the settled face; otherwise two creases can overlap.
+    const render = scene.flip.getRender();
+    render.setBottomPage(null);
+    render.setFlippingPage(null);
+    render.clearShadow();
+    await new Promise<void>(resolve => requestAnimationFrame(() => {
+      scene.host.dataset.coverSettled = 'true';
+      resolve();
+    }));
+    if (!scene.host.isConnected) return;
     rememberFocus(origin);
     document.documentElement.dataset.albumTurnNavigation = 'committed';
 
