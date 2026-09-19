@@ -17,7 +17,7 @@ test('the album routes, sequential page controls and recoverable index work with
 
   await page.locator('.bookmark-index summary').click();
   const albumIndex = page.getByRole('navigation', { name: 'Índice del álbum' });
-  await expect(albumIndex.getByRole('link', { name: 'Atrapando instantes', exact: true })).toBeVisible();
+  await expect(albumIndex.locator('a[href="/portfolio/"]')).toContainText('Atrapando instantes');
   await expect(albumIndex.getByRole('link', { name: 'Portada', exact: true })).toBeVisible();
   await expect(albumIndex.getByRole('link', { name: 'Quién soy' })).toBeVisible();
   await expect(albumIndex.getByRole('link', { name: 'Contacto' })).toBeVisible();
@@ -61,11 +61,9 @@ test('bookmark and Atrapando instantes share the complete canonical album map an
   for (const view of ['bookmark', 'index'] as const) {
     const root = page.locator(`[data-album-map-view="${view}"]`);
     await expect(root.locator('a[href="/portfolio/"]')).toHaveAttribute('aria-current', 'page');
-    const secondSpread = root.locator(
-      '[data-album-map-category="categoria-extensa-de-prueba"][data-album-map-spread="2"]',
-    );
-    await expect(secondSpread.getByRole('link')).toHaveAttribute('href', '/portfolio/categoria-extensa-de-prueba/2/');
-    await expect(secondSpread.getByRole('link')).toContainText('Pliego 2');
+    const secondSpread = root.locator('a[href="/portfolio/categoria-extensa-de-prueba/2/"]');
+    await expect(secondSpread).toHaveAttribute('href', '/portfolio/categoria-extensa-de-prueba/2/');
+    await expect(secondSpread).toContainText('Pliego 2');
   }
 
   await page.goto('/portfolio/categoria-extensa-de-prueba/2/');

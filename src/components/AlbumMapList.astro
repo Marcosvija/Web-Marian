@@ -14,7 +14,13 @@ const activePath = normalizePath(currentPath);
 ---
 
 <ol
-  class:list={['album-map-list', { 'album-map-list-numbered': showCategoryNumbers }]}
+  class:list={[
+    'album-map-list',
+    {
+      'album-map-list-numbered': showCategoryNumbers,
+      'category-list': showCategoryNumbers,
+    },
+  ]}
   aria-label={ariaLabel}
   data-album-map-list
 >
@@ -27,11 +33,13 @@ const activePath = normalizePath(currentPath);
     return (
       <li
         data-album-map-kind={item.kind}
+        data-bookmark-kind={item.kind}
         data-album-map-category={item.categorySlug}
         data-album-map-spread={item.spreadIndex}
         class:list={[
           'album-map-item',
           {
+            'is-category': isCategory,
             'is-category-primary': isPrimaryCategory,
             'is-category-secondary': isSecondarySpread,
             'is-cover-destination': isCover,
