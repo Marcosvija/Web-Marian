@@ -116,6 +116,7 @@ const nextKicker =
   const preparedCoverScenes = new Map<HTMLAnchorElement, Promise<CoverScene | null>>();
   const liveRenderers = new Set<FlexibleRenderer | CoverScene>();
   let geometryRevision = 0;
+  let automaticTurnInFlight = false;
 
   const rememberFocus = (origin: 'keyboard' | 'pointer') => {
     try { sessionStorage.setItem(focusKey, origin); } catch { /* Storage is optional. */ }
@@ -529,8 +530,9 @@ const nextKicker =
     renderer: FlexibleRenderer,
     progress: number,
     commit: boolean,
+    origin: 'keyboard' | 'pointer' = 'pointer',
   ) => {
-    if (!renderer.host.isConnected || !renderer.started || renderer.settling) return;
+    if (!renderer.host.isConnected || !renderer.started || renderer.settling) return false;
     renderer.settling = true;
 
     const dist = renderer.flip.getUI().getDistElement();
@@ -550,22 +552,77 @@ const nextKicker =
       : Math.round(160 + clamped * 120);
 
     await animateRendererTo(renderer, target, duration);
-    if (!renderer.host.isConnected) return;
+    if (!renderer.host.isConnected) return false;
 
     if (!commit) {
       destroyRenderer(renderer);
-      return;
+      return false;
     }
 
     const spread = getSpread();
     spread?.setAttribute('data-turn-committed', 'true');
     renderer.host.dataset.curlSettled = 'true';
     renderer.flip.turnToPage(renderer.direction === 'next' ? 2 : 0);
-    rememberFocus('pointer');
+    rememberFocus(origin);
     document.documentElement.dataset.albumTurnNavigation = 'committed';
 
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     window.location.assign(renderer.link.href);
+    return true;
+  };
+
+  const startAutomaticFlexibleTurn = (renderer: FlexibleRenderer) => {
+    const page = getActivePage(renderer.direction);
+    const box = page?.getBoundingClientRect();
+    if (!page || !box || box.width <= 0 || box.height <= 0) return null;
+
+    const cornerInset = 8;
+    const take = Math.min(16, Math.max(8, box.width * 0.025));
+    const startX = renderer.direction === 'next'
+      ? box.right - cornerInset
+      : box.left + cornerInset;
+    const startY = box.bottom - cornerInset;
+    const currentX = renderer.direction === 'next'
+      ? startX - take
+      : startX + take;
+    const currentY = startY - Math.min(8, take * 0.5);
+
+    beginFlexibleTurn(renderer, startX, startY, currentX, currentY);
+    if (!renderer.started) return null;
+    return Math.max(0.01, Math.min(take / box.width, 0.08));
+  };
+
+  const runAutomaticFlexibleTurn = async (
+    link: HTMLAnchorElement,
+    direction: TurnDirection,
+    origin: 'keyboard' | 'pointer',
+  ) => {
+    const fallback = () => {
+      automaticTurnInFlight = false;
+      delete document.documentElement.dataset.albumAutomaticTurn;
+      delete link.dataset.pageAutoPending;
+      navigateDirect(link, origin);
+    };
+
+    try {
+      const renderer = await prepareFlexibleRenderer(link, direction);
+      if (!renderer) {
+        fallback();
+        return;
+      }
+
+      const progress = startAutomaticFlexibleTurn(renderer);
+      if (progress === null) {
+        fallback();
+        return;
+      }
+
+      delete link.dataset.pageAutoPending;
+      const committed = await settleFlexibleTurn(renderer, progress, true, origin);
+      if (!committed && link.isConnected) fallback();
+    } catch {
+      fallback();
+    }
   };
 
   const getCoverMode = (link: HTMLAnchorElement): CoverMode | null => {
@@ -1143,21 +1200,31 @@ const nextKicker =
       }
 
       const coverMode = getCoverMode(link);
-      if (!coverMode || !physicalModeAvailable()) {
+      if (!physicalModeAvailable()) {
         rememberFocus(event.detail === 0 ? 'keyboard' : 'pointer');
         return;
       }
 
       event.preventDefault();
       const origin = event.detail === 0 ? 'keyboard' : 'pointer';
-      void prepareCoverScene(link).then((scene) => {
-        if (!scene) {
-          navigateDirect(link, origin);
-          return;
-        }
-        startAutomaticCoverTurn(scene);
-        void settleCoverTurn(scene, 0, true, origin);
-      });
+      if (automaticTurnInFlight) return;
+
+      if (coverMode) {
+        void prepareCoverScene(link).then((scene) => {
+          if (!scene) {
+            navigateDirect(link, origin);
+            return;
+          }
+          startAutomaticCoverTurn(scene);
+          void settleCoverTurn(scene, 0, true, origin);
+        });
+        return;
+      }
+
+      automaticTurnInFlight = true;
+      document.documentElement.dataset.albumAutomaticTurn = direction;
+      link.dataset.pageAutoPending = 'true';
+      void runAutomaticFlexibleTurn(link, direction, origin);
     });
 
     link.addEventListener('keydown', (event) => {

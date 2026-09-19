@@ -122,8 +122,11 @@
     .page-navigation-control::before {
       content: "";
       position: absolute;
-      inset: 0;
+      inset: auto;
+      inset-block-end: 0;
       z-index: -1;
+      width: 3rem;
+      height: 3rem;
       background:
         linear-gradient(135deg, rgb(255 255 255 / 0.72), rgb(213 203 189 / 0.9)),
         var(--paper-raised);
@@ -141,6 +144,7 @@
     }
 
     .page-navigation-previous::before {
+      inset-inline-start: 0;
       clip-path: polygon(0 0, 100% 100%, 0 100%);
       transform-origin: bottom left;
     }
@@ -153,6 +157,7 @@
     }
 
     .page-navigation-next::before {
+      inset-inline-end: 0;
       clip-path: polygon(100% 0, 100% 100%, 0 100%);
       transform-origin: bottom right;
     }
@@ -163,9 +168,16 @@
     }
 
     .page-navigation-control:hover::before,
-    .page-navigation-control:focus-visible::before {
+    .page-navigation-control:focus-visible::before,
+    .page-navigation-control[data-page-auto-pending]::before {
       transform: scale(1.08);
       filter: brightness(1.03);
+    }
+
+    html[data-album-automatic-turn] [data-page-navigation] .page-navigation-control,
+    html[data-album-automatic-turn] [data-bookmark-index],
+    html[data-album-automatic-turn] [data-photo-trigger] {
+      pointer-events: none !important;
     }
 
     /* Closed covers share a curved material fold, with the existing 5rem hit
