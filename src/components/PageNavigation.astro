@@ -806,12 +806,12 @@ const nextKicker =
           } else if (clamped <= 0.55) {
             anchor = buriedAnchor;
             leftSide = clamped < 0.5;
-          } else if (clamped < 0.85) {
-            const phase = smoothstep((clamped - 0.55) / 0.3);
-            anchor = buriedAnchor + (rightEdge - buriedAnchor) * phase;
+          } else if (clamped <= 0.85) {
+            anchor = buriedAnchor;
             leftSide = false;
           } else {
-            anchor = rightEdge;
+            const phase = smoothstep((clamped - 0.85) / 0.15);
+            anchor = buriedAnchor + (rightEdge - buriedAnchor) * phase;
             leftSide = false;
           }
         } else if (!front && !leftSide && calculation && clamped > 0 && clamped < 1) {
