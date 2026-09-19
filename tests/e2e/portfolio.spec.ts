@@ -62,6 +62,7 @@ test('bookmark stays global while Atrapando instantes is a photographic editoria
     '/portfolio/categoria-extensa-de-prueba/2/',
   ]);
 
+  await page.locator('[data-bookmark-index] summary').click();
   const bookmark = page.getByRole('navigation', { name: 'Índice global del álbum' });
   await expect(bookmark.getByText('Índice del álbum', { exact: true })).toBeVisible();
   await expect(bookmark.locator('a[href="/portfolio/"]')).toHaveAttribute('aria-current', 'page');

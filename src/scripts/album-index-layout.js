@@ -36,7 +36,8 @@
     const height = (values) => values.reduce((sum, value) => sum + value, 0) + Math.max(0, values.length - 1) * gap;
     let split = -1;
     let best = Infinity;
-    for (let index = 0; index <= groups.length; index++) {
+    const firstSplit = groups.length > 0 ? 1 : 0;
+    for (let index = firstSplit; index <= groups.length; index++) {
       const leftHeight = height(heights.slice(0, index));
       const rightHeight = height(heights.slice(index));
       if (leftHeight > leftSpace.capacity || rightHeight > rightSpace.capacity) continue;
