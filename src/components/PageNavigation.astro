@@ -785,12 +785,38 @@ const nextKicker =
         const objectLeft = sourceClosed ? width / 4 : 0;
         const objectWidth = sourceClosed ? width / 2 : width;
         const calculation = scene.flip.getFlipController().getCalculation();
-        if (!front && !leftSide && calculation && clamped > 0 && clamped < 1) {
-          // The back opening has a transparent placeholder to the right of the
-          // hinge. Interpolating only the two route anchors can leave the ribbon
-          // floating there. Bound its insertion by the actual paper cross-section
-          // throughout the ribbon's height, using the same fold polygons as the
-          // renderer (and the closing cutout below), without adding an occluder.
+        if (scene.mode === 'open-back' && clamped > 0 && clamped < 1) {
+          // BUG-18: reopening the back cover cannot expose a right-facing ribbon
+          // in the middle of the spread. Treat the bookmark as a real inserted
+          // strip: keep it on the live left edge, bury it under the left page,
+          // switch orientation while fully covered, then carry it under paper
+          // until it reaches the live right edge and can emerge there.
+          const smoothstep = (value: number) => value * value * (3 - 2 * value);
+          const leftEdge = shift;
+          const rightEdge = shift + width - clipSize;
+          const buriedAnchor = shift + scene.pageWidth * 0.75;
+
+          if (clamped <= 0.25) {
+            anchor = leftEdge;
+            leftSide = true;
+          } else if (clamped < 0.45) {
+            const phase = smoothstep((clamped - 0.25) / 0.2);
+            anchor = leftEdge + (buriedAnchor - leftEdge) * phase;
+            leftSide = true;
+          } else if (clamped <= 0.55) {
+            anchor = buriedAnchor;
+            leftSide = clamped < 0.5;
+          } else if (clamped < 0.85) {
+            const phase = smoothstep((clamped - 0.55) / 0.3);
+            anchor = buriedAnchor + (rightEdge - buriedAnchor) * phase;
+            leftSide = false;
+          } else {
+            anchor = rightEdge;
+            leftSide = false;
+          }
+        } else if (!front && !leftSide && calculation && clamped > 0 && clamped < 1) {
+          // Closing the back cover still uses the actual fold cross-section to
+          // keep the inserted ribbon behind real paper.
           const intersections = (area: ({ x: number; y: number } | null)[], y: number) => {
             const points = area.filter((point): point is { x: number; y: number } => point !== null);
             return points.flatMap((point, index) => {
@@ -810,11 +836,6 @@ const nextKicker =
             return Math.min(width - clipSize, Math.max(stationary, ...intersections(folded, y)));
           }));
           anchor = Math.min(anchor, shift + edge);
-          // open-back can be pulled back under the real fold after the initial
-          // route interpolation has already crossed the nominal hinge. Decide
-          // its orientation from the constrained physical anchor, otherwise a
-          // right-facing ribbon can protrude before the destination edge exists.
-          if (scene.mode === 'open-back') leftSide = anchor <= sideBoundary;
         }
         bookmark.open = false;
         bookmark.dataset.bookmarkTurning = 'true';

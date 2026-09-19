@@ -130,7 +130,7 @@ test('cover turns keep the ribbon inserted in real paper, including both sides o
     const y = box.y + box.height - 10;
     await page.mouse.move(x, y);
     await page.mouse.down();
-    for (const progress of [0.1, 0.24, 0.26, 0.45, 0.55, 0.74, 0.76, 0.9]) {
+    for (const progress of [0.1, 0.24, 0.26, 0.45, 0.49, 0.51, 0.55, 0.74, 0.76, 0.9]) {
       await page.mouse.move(x + (direction === 'next' ? -1 : 1) * width * progress, y - 70, { steps: 6 });
       await expect(page.locator('[data-cover-active="true"]')).toBeAttached();
       // Allow the renderer to paint the polygon supplied by the pointer update.
@@ -155,7 +155,7 @@ test('cover turns keep the ribbon inserted in real paper, including both sides o
         return { side: marker.dataset.bookmarkSide, inserted, covered };
       });
       expect(probe.inserted, `${route} ${progress}`).toEqual([true, true, true]);
-      if ((route === '/contraportada/' && (progress === 0.24 || progress === 0.26)) ||
+      if ((route === '/contraportada/' && (progress === 0.49 || progress === 0.51)) ||
           (route === '/contacto/' && (progress === 0.74 || progress === 0.76))) {
         expect(probe.covered, `side changes under real paper: ${route} ${progress}`).toBe(true);
       }
@@ -213,14 +213,17 @@ test('open-back only exposes the right-facing ribbon while real paper covers its
       const insertionCovered = [0.1, 0.45, 0.8].map(
         fraction => topPaperAt(insertionX, ribbonBox.top + ribbonBox.height * fraction),
       );
-      // BUG-18 is perceptual: a deep part of the ribbon can still be covered while
-      // the visible ribbon floats away from the real paper edge. Probe four pixels
-      // inside the live anchor itself, where paper must still support a right-facing
-      // ribbon during the second half of Contraportada → Contacto.
-      const nearAnchorX = left ? markerBox.x + 4 : markerBox.x - 4;
-      const anchorSupported = [0.1, 0.45, 0.8].map(
-        fraction => topPaperAt(nearAnchorX, ribbonBox.top + ribbonBox.height * fraction),
-      );
+      const hostBox = host.getBoundingClientRect();
+      const clipRight = parseFloat(getComputedStyle(host).getPropertyValue('--cover-scene-clip-right')) || 0;
+      const sceneRightEdge = hostBox.right - clipRight;
+      const exposedSamples = [0.1, 0.5, 0.9].flatMap(xFraction =>
+        [0.1, 0.45, 0.8].map(yFraction =>
+          topPaperAt(
+            ribbonBox.left + ribbonBox.width * xFraction,
+            ribbonBox.top + ribbonBox.height * yFraction,
+          ) ? 0 : 1,
+        ),
+      ).reduce((total, value) => total + value, 0);
 
       host.style.removeProperty('pointer-events');
       blanks.forEach((element, index) => {
@@ -233,15 +236,21 @@ test('open-back only exposes the right-facing ribbon while real paper covers its
       return {
         side: marker.dataset.bookmarkSide,
         insertionCovered,
-        anchorSupported,
+        exposedSamples,
         anchorX: markerBox.x,
+        sceneRightEdge,
         ribbon: ribbonBox.toJSON(),
       };
     });
 
     if (probe.side === 'right') {
       expect(probe.insertionCovered, `open-back insertion ${progress}`).toEqual([true, true, true]);
-      expect(probe.anchorSupported, `open-back anchor ${progress}`).toEqual([true, true, true]);
+      if (progress < 0.85) {
+        expect(probe.exposedSamples, `open-back buried ribbon ${progress}`).toBe(0);
+      } else {
+        expect(Math.abs(probe.anchorX - probe.sceneRightEdge), `open-back live edge ${progress}`).toBeLessThan(2);
+        expect(probe.exposedSamples, `open-back emerged ribbon ${progress}`).toBeGreaterThan(0);
+      }
     }
     evidence.push({ progress, ...probe });
   }
