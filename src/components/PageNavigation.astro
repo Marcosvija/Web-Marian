@@ -10,16 +10,18 @@ const { pages, currentPath } = Astro.props;
 const currentIndex = pages.findIndex(({ href }) => href === currentPath);
 const previous = currentIndex > 0 ? pages[currentIndex - 1] : undefined;
 const next = currentIndex >= 0 && currentIndex < pages.length - 1 ? pages[currentIndex + 1] : undefined;
+const previousLabel = previous?.navigationLabel ?? previous?.label ?? '';
+const nextLabel = next?.navigationLabel ?? next?.label ?? '';
 
 const closesFrontCover = currentPath === '/sobre-mi/' && previous?.href === '/';
 const previousAria =
   currentPath === '/contraportada/' ? 'Reabrir álbum' :
   closesFrontCover ? 'Cerrar álbum' :
-  previous ? `Página anterior: ${previous.label}` : '';
+  previous ? `Página anterior: ${previousLabel}` : '';
 const nextAria =
   currentPath === '/' ? 'Abrir el álbum' :
   currentPath === '/contacto/' && next?.href === '/contraportada/' ? 'Cerrar álbum' :
-  next ? `Página siguiente: ${next.label}` : '';
+  next ? `Página siguiente: ${nextLabel}` : '';
 
 const previousKicker =
   currentPath === '/contraportada/' ? 'Reabrir álbum' :
@@ -40,12 +42,12 @@ const nextKicker =
         rel="prev"
         aria-label={previousAria}
         data-page-direction="previous"
-        data-page-destination={previous.label}
+        data-page-destination={previousLabel}
       >
         <span class="page-navigation-arrow" aria-hidden="true">←</span>
         <span class="page-navigation-copy">
           <span class="page-navigation-kicker">{previousKicker}</span>
-          <span>{previous.label}</span>
+          <span>{previousLabel}</span>
         </span>
       </a>
     ) : <span class="page-navigation-spacer" aria-hidden="true"></span>}
@@ -57,11 +59,11 @@ const nextKicker =
         rel="next"
         aria-label={nextAria}
         data-page-direction="next"
-        data-page-destination={next.label}
+        data-page-destination={nextLabel}
       >
         <span class="page-navigation-copy">
           <span class="page-navigation-kicker">{nextKicker}</span>
-          <span>{next.label}</span>
+          <span>{nextLabel}</span>
         </span>
         <span class="page-navigation-arrow" aria-hidden="true">→</span>
       </a>

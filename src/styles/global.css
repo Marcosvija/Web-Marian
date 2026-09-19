@@ -163,29 +163,19 @@ h1 {
   letter-spacing: -0.045em;
 }
 
-.primary-action,
-.text-action {
+.primary-action {
   display: inline-flex;
   min-height: 2.75rem;
+  margin-block-start: 2rem;
+  padding: 0.75rem 1.25rem;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  font-weight: 700;
-}
-
-.primary-action {
-  margin-block-start: 2rem;
-  padding: 0.75rem 1.25rem;
   border: 1px solid var(--ink);
   background: var(--ink);
   color: white;
+  font-weight: 700;
   text-decoration: none;
-}
-
-.text-action {
-  align-self: end;
-  justify-self: start;
-  margin-block-start: 2rem;
 }
 
 .cover-view {
@@ -248,35 +238,78 @@ h1 {
   color: var(--muted);
 }
 
-.category-list,
+.album-map-list,
 .contact-list {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.category-list a,
+.album-map-list a,
 .contact-list a {
-  display: grid;
-  min-height: 3.5rem;
+  min-height: 2.75rem;
   align-items: center;
   border-block-end: 1px solid var(--line);
   text-decoration: none;
 }
 
-.category-list a {
-  grid-template-columns: 3rem 1fr auto;
-  gap: 1rem;
+.album-map-list a {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  padding-inline: 0.25rem;
 }
 
-.category-list a:hover,
+.contact-list a {
+  display: grid;
+  min-height: 3.5rem;
+}
+
+.album-map-list a:hover,
 .contact-list a:hover {
   background: rgb(88 56 47 / 0.06);
 }
 
-.category-number {
+.album-map-list a[aria-current="page"] {
+  background: rgb(88 56 47 / 0.075);
+  font-weight: 800;
+}
+
+.album-map-list .is-cover-destination a {
+  font-family: Georgia, serif;
+  font-style: italic;
+}
+
+.album-map-list .is-category-primary a {
+  font-weight: 700;
+}
+
+.album-map-list .is-category-secondary a {
+  padding-inline-start: 1.5rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.album-map-list-numbered .is-category-primary a {
+  padding-inline-start: 0.5rem;
+}
+
+.album-map-list-numbered .is-category-secondary a {
+  padding-inline-start: 3.35rem;
+}
+
+.album-map-number {
+  width: 2.2rem;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+
+.album-map-label {
+  min-width: 0;
+}
+
+.portfolio-index .album-map-list {
+  width: 100%;
 }
 
 .section-heading {
@@ -434,33 +467,31 @@ h1 {
   font-size: 1.3rem;
 }
 
-.bookmark-panel ul {
+.bookmark-panel .album-map-list {
   margin: 0;
   padding: 0;
-  list-style: none;
 }
 
-.bookmark-panel li.is-category {
-  padding-inline-start: 1rem;
-}
-
-.bookmark-panel li.is-cover-destination a {
-  font-family: Georgia, serif;
-  font-style: italic;
-}
-
-.bookmark-panel a {
+.bookmark-panel .album-map-list a {
   display: flex;
   min-height: 2.75rem;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  padding-inline: 0;
   border-block-end: 1px solid rgb(71 60 51 / 0.12);
-  text-decoration: none;
 }
 
-.bookmark-panel a[aria-current="page"] {
-  font-weight: 800;
+.bookmark-panel .is-category-primary {
+  padding-inline-start: 0.75rem;
+}
+
+.bookmark-panel .is-category-secondary {
+  padding-inline-start: 1.75rem;
+}
+
+.bookmark-panel .is-category-secondary a {
+  padding-inline-start: 0;
 }
 
 .current-marker {
@@ -481,7 +512,7 @@ h1 {
       inset-inline: auto 0;
       z-index: 24;
       width: 0;
-      height: 7.5rem;
+      height: 8rem;
       overflow: visible;
       pointer-events: none;
     }
@@ -557,8 +588,8 @@ h1 {
       display: grid;
       width: 2.75rem;
       min-width: 2.75rem;
-      height: 7.5rem;
-      min-height: 7.5rem;
+      height: 8rem;
+      min-height: 8rem;
       padding: 0;
       place-items: center;
       border: 0;
@@ -604,16 +635,16 @@ h1 {
     .bookmark-ribbon-label {
       position: absolute;
       /* Physical axes: logical insets rotate with vertical writing mode. */
-      top: 0.78rem;
-      right: 0.12rem;
+      top: 0.58rem;
+      right: 0.06rem;
       display: grid;
-      width: 0.8rem;
-      height: 5.45rem;
+      width: 0.86rem;
+      height: 6.2rem;
       place-items: center;
       color: rgb(255 252 248 / 0.99);
-      font-size: 0.76rem;
+      font-size: 0.88rem;
       font-weight: 850;
-      letter-spacing: 0.055em;
+      letter-spacing: 0.045em;
       line-height: 1;
       text-shadow: 0 1px 1px rgb(44 29 24 / 0.38);
       writing-mode: vertical-rl;
@@ -640,7 +671,7 @@ h1 {
 
     .album-object.is-back-cover-object .bookmark-ribbon-label {
       right: auto;
-      left: 0.12rem;
+      left: 0.06rem;
     }
 
     .bookmark-index summary:hover,
@@ -795,11 +826,6 @@ h1 {
     .contact-view .empty-state,
     .contact-view .contact-list {
       align-self: center;
-    }
-  
-    .about-view .text-action,
-    .contact-view .text-action {
-      grid-column: 2;
     }
   
     .photo-grid {

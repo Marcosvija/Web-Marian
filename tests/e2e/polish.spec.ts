@@ -49,8 +49,15 @@ test('ribbon label is exposed, target is 44px and the index owns its keyboard fo
       await expect(index).toHaveAttribute('data-bookmark-viewport-ready', 'true');
       const object = (await page.locator('[data-album-object]').boundingBox())!;
       const hit = (await summary.boundingBox())!;
-      const label = (await summary.locator('.bookmark-ribbon-label').boundingBox())!;
+      const labelLocator = summary.locator('.bookmark-ribbon-label');
+      const label = (await labelLocator.boundingBox())!;
+      const ribbon = (await summary.locator('.bookmark-ribbon').boundingBox())!;
+      const labelFontSize = Number.parseFloat(await labelLocator.evaluate((element) => getComputedStyle(element).fontSize));
       expect(hit.width).toBeGreaterThanOrEqual(44);
+      expect(labelFontSize).toBeGreaterThanOrEqual(14);
+      const labelCenterRatio = (label.y + label.height / 2 - ribbon.y) / ribbon.height;
+      expect(labelCenterRatio).toBeGreaterThan(0.4);
+      expect(labelCenterRatio).toBeLessThan(0.52);
       expect(hit.x).toBeGreaterThanOrEqual(8);
       expect(hit.x + hit.width).toBeLessThanOrEqual(width - 8);
       if (route === '/contraportada/') expect(label.x + label.width).toBeLessThan(object.x);

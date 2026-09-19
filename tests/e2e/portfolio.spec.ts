@@ -17,7 +17,7 @@ test('the album routes, sequential page controls and recoverable index work with
 
   await page.locator('.bookmark-index summary').click();
   const albumIndex = page.getByRole('navigation', { name: 'Índice del álbum' });
-  await expect(albumIndex.getByRole('link', { name: 'Portfolio', exact: true })).toHaveCount(0);
+  await expect(albumIndex.getByRole('link', { name: 'Atrapando instantes', exact: true })).toBeVisible();
   await expect(albumIndex.getByRole('link', { name: 'Portada', exact: true })).toBeVisible();
   await expect(albumIndex.getByRole('link', { name: 'Quién soy' })).toBeVisible();
   await expect(albumIndex.getByRole('link', { name: 'Contacto' })).toBeVisible();
@@ -32,6 +32,63 @@ test('the album routes, sequential page controls and recoverable index work with
   ).toBeVisible();
 
   await context.close();
+});
+
+
+test('bookmark and Atrapando instantes share the complete canonical album map and redundant CTAs are absent', async ({ page }) => {
+  await page.goto('/portfolio/');
+
+  const bookmarkMap = page.locator('[data-album-map-view="bookmark"] [data-album-map-link]');
+  const indexMap = page.locator('[data-album-map-view="index"] [data-album-map-link]');
+  const hrefs = (locator: import('@playwright/test').Locator) =>
+    locator.evaluateAll((links) => links.map((link) => link.getAttribute('href')));
+
+  const expected = [
+    '/',
+    '/sobre-mi/',
+    '/portfolio/',
+    '/portfolio/categoria-de-prueba/',
+    '/portfolio/segunda-categoria-de-prueba/',
+    '/portfolio/categoria-extensa-de-prueba/',
+    '/portfolio/categoria-extensa-de-prueba/2/',
+    '/contacto/',
+    '/contraportada/',
+  ];
+
+  expect(await hrefs(bookmarkMap)).toEqual(expected);
+  expect(await hrefs(indexMap)).toEqual(expected);
+
+  for (const view of ['bookmark', 'index'] as const) {
+    const root = page.locator(`[data-album-map-view="${view}"]`);
+    await expect(root.locator('a[href="/portfolio/"]')).toHaveAttribute('aria-current', 'page');
+    const secondSpread = root.locator(
+      '[data-album-map-category="categoria-extensa-de-prueba"][data-album-map-spread="2"]',
+    );
+    await expect(secondSpread.getByRole('link')).toHaveAttribute('href', '/portfolio/categoria-extensa-de-prueba/2/');
+    await expect(secondSpread.getByRole('link')).toContainText('Pliego 2');
+  }
+
+  await page.goto('/portfolio/categoria-extensa-de-prueba/2/');
+  await expect(
+    page.locator('[data-album-map-view="bookmark"] a[href="/portfolio/categoria-extensa-de-prueba/2/"]'),
+  ).toHaveAttribute('aria-current', 'page');
+
+  await page.goto('/sobre-mi/');
+  await expect(page.getByRole('link', { name: 'Ir al portfolio' })).toHaveCount(0);
+  await expect(page.locator('.about-view .text-action')).toHaveCount(0);
+
+  await page.goto('/portfolio/');
+  await expect(page.locator('.portfolio-index .text-action')).toHaveCount(0);
+  await expect(
+    page.locator('[data-album-map-view="index"]').getByRole('link', { name: 'Contacto', exact: true }),
+  ).toBeVisible();
+
+  await page.goto('/contacto/');
+  await expect(page.getByRole('link', { name: 'Volver al índice' })).toHaveCount(0);
+  await expect(page.locator('.contact-view .text-action')).toHaveCount(0);
+  await expect(
+    page.getByRole('navigation', { name: 'Recorrido entre páginas del álbum' }).getByRole('link'),
+  ).not.toHaveCount(0);
 });
 
 test('keyboard page navigation follows the editorial sequence and moves focus to the new page', async ({ page }) => {

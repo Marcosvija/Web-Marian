@@ -1,55 +1,61 @@
 ---
-import type { CategoryEntry } from '../lib/categories';
+import AlbumMapList from './AlbumMapList.astro';
+import type { AlbumDestination } from '../lib/album-map';
 
 interface Props {
-  categories: CategoryEntry[];
+  items: AlbumDestination[];
+  currentPath: string;
 }
 
-const { categories } = Astro.props;
-const midpoint = Math.ceil(categories.length / 2);
-const leftCategories = categories.slice(0, midpoint);
-const rightCategories = categories.slice(midpoint);
+const { items, currentPath } = Astro.props;
+
+const groups: AlbumDestination[][] = [];
+for (const item of items) {
+  const previousGroup = groups.at(-1);
+  const previous = previousGroup?.[0];
+  if (
+    item.kind === 'category' &&
+    item.categorySlug &&
+    previous?.kind === 'category' &&
+    previous.categorySlug === item.categorySlug
+  ) {
+    previousGroup?.push(item);
+  } else {
+    groups.push([item]);
+  }
+}
+
+let splitIndex = 1;
+let runningCount = 0;
+let bestDistance = Number.POSITIVE_INFINITY;
+for (let index = 0; index < groups.length - 1; index += 1) {
+  runningCount += groups[index]?.length ?? 0;
+  const distance = Math.abs(items.length / 2 - runningCount);
+  if (distance < bestDistance) {
+    bestDistance = distance;
+    splitIndex = index + 1;
+  }
+}
+
+const leftItems = groups.slice(0, splitIndex).flat();
+const rightItems = groups.slice(splitIndex).flat();
 ---
 
-<section class="portfolio-index sheet album-spread" aria-labelledby="portfolio-title" data-album-spread>
+<section
+  class="portfolio-index sheet album-spread"
+  aria-labelledby="portfolio-title"
+  data-album-spread
+  data-album-map-view="index"
+>
   <div class="album-page album-page-left">
     <header class="section-heading">
       <p class="eyebrow">Índice</p>
       <h1 id="portfolio-title">Atrapando instantes</h1>
     </header>
-
-    {categories.length > 0 ? (
-      <ol class="category-list" aria-label="Primera parte del índice">
-        {leftCategories.map(({ data }, index) => (
-          <li>
-            <a href={`/portfolio/${data.slug}/`}>
-              <span class="category-number">{String(index + 1).padStart(2, '0')}</span>
-              <span>{data.title}</span>
-              <span aria-hidden="true">→</span>
-            </a>
-          </li>
-        ))}
-      </ol>
-    ) : (
-      <p class="empty-state" role="status">La selección fotográfica se incorporará desde contenido validado.</p>
-    )}
+    <AlbumMapList items={leftItems} currentPath={currentPath} ariaLabel="Primera parte del mapa del álbum" showCategoryNumbers />
   </div>
 
   <div class="album-page album-page-right">
-    {rightCategories.length > 0 && (
-      <ol class="category-list category-list-continuation" start={midpoint + 1} aria-label="Segunda parte del índice">
-        {rightCategories.map(({ data }, index) => (
-          <li>
-            <a href={`/portfolio/${data.slug}/`}>
-              <span class="category-number">{String(midpoint + index + 1).padStart(2, '0')}</span>
-              <span>{data.title}</span>
-              <span aria-hidden="true">→</span>
-            </a>
-          </li>
-        ))}
-      </ol>
-    )}
-
-    <a class="text-action" href="/contacto/">Contacto <span aria-hidden="true">→</span></a>
+    <AlbumMapList items={rightItems} currentPath={currentPath} ariaLabel="Segunda parte del mapa del álbum" showCategoryNumbers />
   </div>
 </section>

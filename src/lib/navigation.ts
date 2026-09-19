@@ -1,54 +1,14 @@
 import { getOrderedCategories } from './categories';
-import { getCategorySpreads, getCategorySpreadPath } from './category-layout';
+import { buildAlbumMap } from './album-map';
 
-export type NavigationKind = 'cover' | 'back-cover' | 'section' | 'category';
+export {
+  buildAlbumMap,
+  type AlbumDestination,
+  type AlbumPage,
+  type NavigationItem,
+  type NavigationKind,
+} from './album-map';
 
-export interface NavigationItem {
-  href: string;
-  label: string;
-  kind: NavigationKind;
-}
-
-export interface AlbumPage {
-  href: string;
-  label: string;
-  kind: NavigationKind;
-}
-
-export async function getAlbumNavigation(): Promise<NavigationItem[]> {
-  const categories = await getOrderedCategories();
-
-  return [
-    { href: '/', label: 'Portada', kind: 'cover' },
-    { href: '/sobre-mi/', label: 'Quién soy', kind: 'section' },
-    ...categories.map(({ data }) => ({
-      href: `/portfolio/${data.slug}/`,
-      label: data.title,
-      kind: 'category' as const,
-    })),
-    { href: '/contacto/', label: 'Contacto', kind: 'section' },
-    { href: '/contraportada/', label: 'Contraportada', kind: 'back-cover' },
-  ];
-}
-
-export async function getAlbumPageSequence(): Promise<AlbumPage[]> {
-  const categories = await getOrderedCategories();
-  const categoryPages = categories.flatMap(({ data }) => {
-    const spreads = getCategorySpreads(data.photos);
-
-    return spreads.map((spread) => ({
-      href: getCategorySpreadPath(data.slug, spread.index),
-      label: spread.index === 0 ? data.title : `${data.title} · ${spread.index + 1}`,
-      kind: 'category' as const,
-    }));
-  });
-
-  return [
-    { href: '/', label: 'Portada', kind: 'cover' },
-    { href: '/sobre-mi/', label: 'Quién soy', kind: 'section' },
-    { href: '/portfolio/', label: 'Índice', kind: 'section' },
-    ...categoryPages,
-    { href: '/contacto/', label: 'Contacto', kind: 'section' },
-    { href: '/contraportada/', label: 'Contraportada', kind: 'back-cover' },
-  ];
+export async function getAlbumMap() {
+  return buildAlbumMap(await getOrderedCategories());
 }
