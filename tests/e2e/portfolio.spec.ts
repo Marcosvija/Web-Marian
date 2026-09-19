@@ -231,8 +231,9 @@ test('the bookmark is physically inserted laterally and includes both covers in 
     const occlusionContent = await index.evaluate((element) =>
       getComputedStyle(element, '::after').content,
     );
-    expect(slotContent, route).not.toBe('none');
-    expect(occlusionContent, route).not.toBe('none');
+    // The actual album pages now occlude the ribbon; there is no independent slot.
+    expect(slotContent, route).toBe('none');
+    expect(occlusionContent, route).toBe('none');
 
     await tab.hover();
     await page.waitForTimeout(180);
@@ -349,7 +350,8 @@ test('desktop album scales proportionally with the useful viewport without a fix
     await page.setViewportSize(viewport);
 
     const expectedWidth = Math.min(
-      viewport.width - 48,
+      // Reserve 44px of ribbon plus 8px of viewport safety on each edge.
+      viewport.width - 104,
       (viewport.height - 88) * (16 / 9),
     );
     const expectedHeight = expectedWidth * (9 / 16);
@@ -443,7 +445,7 @@ test('double spread reflows when useful width or height is insufficient', async 
   }
 });
 
-test('single-page reflow adds one small gap between former left and right page groups', async ({ page }) => {
+test('single-page reflow keeps small page gaps and a continuous editorial index', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
 
   for (const route of [
@@ -457,6 +459,12 @@ test('single-page reflow adds one small gap between former left and right page g
     const left = page.locator('[data-album-spread] > .album-page-left');
     const right = page.locator('[data-album-spread] > .album-page-right');
     await expect(left, route).toHaveCSS('display', 'block');
+    if (route === '/portfolio/') {
+      await expect(right).toHaveCSS('display', 'none');
+      await expect(left.locator('[data-album-map-link]')).toHaveCount(9);
+      await expect(right.locator('[data-index-group]')).toHaveCount(0);
+      continue;
+    }
     await expect(right, route).toHaveCSS('display', 'block');
 
     const leftBox = await left.boundingBox();
@@ -801,7 +809,7 @@ test('desktop bookmark is a viewport-safe lateral ribbon that mirrors on the bac
       expect(summaryRight, current.route).toBeGreaterThan(objectRight);
       const inserted = objectRight - summaryBox.x;
       expect(inserted, current.route).toBeGreaterThan(8);
-      // The ribbon retracts further when the full spread leaves only 24px of margin.
+      // The wider ribbon keeps 20px inserted and reserves its free edge in the viewport.
       expect(inserted, current.route).toBeLessThanOrEqual(24);
     } else {
       expect(summaryBox.x, current.route).toBeLessThan(objectBox.x);

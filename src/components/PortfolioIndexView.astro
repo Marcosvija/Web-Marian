@@ -25,20 +25,6 @@ for (const item of items) {
   }
 }
 
-let splitIndex = 1;
-let runningCount = 0;
-let bestDistance = Number.POSITIVE_INFINITY;
-for (let index = 0; index < groups.length - 1; index += 1) {
-  runningCount += groups[index]?.length ?? 0;
-  const distance = Math.abs(items.length / 2 - runningCount);
-  if (distance < bestDistance) {
-    bestDistance = distance;
-    splitIndex = index + 1;
-  }
-}
-
-const leftItems = groups.slice(0, splitIndex).flat();
-const rightItems = groups.slice(splitIndex).flat();
 ---
 
 <section
@@ -46,16 +32,30 @@ const rightItems = groups.slice(splitIndex).flat();
   aria-labelledby="portfolio-title"
   data-album-spread
   data-album-map-view="index"
+  data-index-layout="flow"
 >
   <div class="album-page album-page-left">
     <header class="section-heading">
       <p class="eyebrow">Índice</p>
       <h1 id="portfolio-title">Atrapando instantes</h1>
     </header>
-    <AlbumMapList items={leftItems} currentPath={currentPath} ariaLabel="Primera parte del mapa del álbum" showCategoryNumbers />
+    <div class="index-groups" data-index-groups>
+      {groups.map((group) => (
+        <div class="index-group" data-index-group>
+          <AlbumMapList items={group} currentPath={currentPath} ariaLabel={group[0]?.label ?? 'Mapa del álbum'} showCategoryNumbers />
+        </div>
+      ))}
+    </div>
   </div>
 
   <div class="album-page album-page-right">
-    <AlbumMapList items={rightItems} currentPath={currentPath} ariaLabel="Segunda parte del mapa del álbum" showCategoryNumbers />
+    <div class="index-groups" data-index-groups></div>
   </div>
 </section>
+
+<script is:inline>
+  // Synchronous layout after this section is parsed, before its first paint.
+  document.dispatchEvent(new CustomEvent('album:compose-index', {
+    detail: document.currentScript.previousElementSibling,
+  }));
+</script>

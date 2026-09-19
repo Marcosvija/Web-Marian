@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import '../styles/page-navigation.css';
 import '../styles/album-spread.css';
+import indexLayoutScript from '../scripts/album-index-layout.js?raw';
 
 interface Props {
   title: string;
@@ -19,6 +20,7 @@ const {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
+    <script is:inline set:html={indexLayoutScript} />
     <script is:inline>
       // Opt in before the destination's first paint, without waiting for the
       // deferred navigation module. No-JS, reflow and reduced motion stay direct.

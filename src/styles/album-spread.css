@@ -63,6 +63,25 @@
   margin-block-start: 1rem;
 }
 
+.index-groups {
+  display: grid;
+  gap: 0.5rem;
+  flex: none;
+}
+
+.index-group {
+  min-width: 0;
+  break-inside: avoid;
+}
+
+.portfolio-index .section-heading {
+  flex: none;
+}
+
+.portfolio-index[data-index-layout="flow"] > .album-page-right {
+  display: none;
+}
+
 @media (min-height: 38rem) {
   @container album (min-width: 56rem) {
     .album-stage {
@@ -70,6 +89,7 @@
     }
 
     .album-object.is-closed-cover .album-cover {
+      z-index: 1;
       width: 100%;
       height: auto;
       min-height: 0;
@@ -77,6 +97,7 @@
     }
 
     .album-spread {
+      z-index: 1;
       display: grid;
       width: 100%;
       height: auto;
@@ -206,8 +227,7 @@
     }
 
     .about-view .album-page-right,
-    .contact-view .album-page-right,
-    .portfolio-index .album-page-right {
+    .contact-view .album-page-right {
       justify-content: center;
     }
 
@@ -219,6 +239,28 @@
 
     .portfolio-index .category-list-continuation {
       margin-block-start: 0;
+    }
+
+    .portfolio-index[data-album-spread] {
+      --index-spread-mode: 1;
+    }
+
+    .portfolio-index .album-page {
+      overflow: visible;
+      justify-content: flex-start;
+    }
+
+    .portfolio-index[data-index-layout="flow"] {
+      display: block;
+      aspect-ratio: auto;
+    }
+
+    .portfolio-index[data-index-layout="flow"] > .album-page {
+      height: auto;
+    }
+
+    .portfolio-index[data-index-layout="flow"] > .album-page-right {
+      display: none;
     }
 
     .category-view .section-heading {

@@ -10,7 +10,7 @@ interface Props {
 const { items, currentPath } = Astro.props;
 ---
 
-<details class="bookmark-index" data-bookmark-index>
+<details class="bookmark-index" data-bookmark-index data-bookmark-side={currentPath === '/contraportada/' ? 'left' : 'right'} data-bookmark-viewport-ready="true">
   <summary>
     <span class="bookmark-ribbon"><span class="bookmark-ribbon-label">Índice</span></span>
   </summary>
@@ -23,47 +23,6 @@ const { items, currentPath } = Astro.props;
 <script>
   const bookmark = document.querySelector<HTMLDetailsElement>('[data-bookmark-index]');
 
-  const updateBookmarkViewportGeometry = () => {
-    if (!bookmark) return;
-
-    const albumObject = bookmark.closest<HTMLElement>('[data-album-object]');
-    if (!albumObject) return;
-
-    const objectBox = albumObject.getBoundingClientRect();
-    const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
-    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-    const leftSide = albumObject.classList.contains('is-back-cover-object');
-    const sideSpace = leftSide ? objectBox.left : viewportWidth - objectBox.right;
-    const viewportGap = 8;
-    const desiredExposed = 24;
-    const availableOutside = Math.max(0, sideSpace - viewportGap);
-    const exposed = Math.min(desiredExposed, availableOutside);
-    const remainingOutside = Math.max(0, availableOutside - exposed);
-    const anchorTop = objectBox.top + objectBox.height * 0.4;
-    const panelMaxHeight = Math.max(160, viewportHeight - anchorTop - 10);
-
-    const direction = leftSide ? -1 : 1;
-    const bookmarkBox = bookmark.getBoundingClientRect();
-    const anchorX = leftSide ? bookmarkBox.left : bookmarkBox.right;
-    const objectEdgeX = leftSide ? objectBox.left : objectBox.right;
-    const edgeCorrection = objectEdgeX - anchorX;
-    const hoverPull = Math.min(6, remainingOutside);
-    const openPull = Math.min(16, remainingOutside);
-
-    bookmark.style.setProperty('--bookmark-rest-x', `${edgeCorrection + direction * exposed}px`);
-    bookmark.style.setProperty('--bookmark-hover-x', `${edgeCorrection + direction * (exposed + hoverPull)}px`);
-    bookmark.style.setProperty('--bookmark-open-x', `${edgeCorrection + direction * (exposed + openPull)}px`);
-    bookmark.style.setProperty('--bookmark-panel-max-height', `${panelMaxHeight}px`);
-    bookmark.dataset.bookmarkSide = leftSide ? 'left' : 'right';
-    // Commit the initial side and position before enabling extraction transitions.
-    // Otherwise the back ribbon animates across the book edge on first load.
-    if (!bookmark.dataset.bookmarkViewportReady) {
-      bookmark.querySelector('summary')?.getBoundingClientRect();
-    }
-    bookmark.dataset.bookmarkViewportReady = 'true';
-  };
-
-  bookmark?.addEventListener('toggle', () => requestAnimationFrame(updateBookmarkViewportGeometry));
   bookmark?.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || !bookmark.open) return;
     event.preventDefault();
@@ -75,7 +34,4 @@ const { items, currentPath } = Astro.props;
       bookmark.open = false;
     }
   });
-  window.addEventListener('resize', updateBookmarkViewportGeometry);
-  window.visualViewport?.addEventListener('resize', updateBookmarkViewportGeometry);
-  requestAnimationFrame(updateBookmarkViewportGeometry);
 </script>

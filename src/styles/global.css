@@ -126,7 +126,8 @@ a {
    Short landscape/reflow viewports keep the full useful reading width. */
 @media (min-width: 59rem) and (min-height: 38rem) {
   .album-frame {
-    width: min(100%, calc(177.7778dvh - 9.7778rem));
+    /* 44px of usable ribbon + 8px safety on either physical edge. */
+    width: min(calc(100% - 3.5rem), calc(177.7778dvh - 9.7778rem));
   }
 }
 
@@ -503,93 +504,44 @@ h1 {
 @media (min-height: 38rem) {
   @container album (min-width: 56rem) {
     .bookmark-index {
-      --bookmark-rest-x: 1rem;
-      --bookmark-hover-x: 1rem;
-      --bookmark-open-x: 1rem;
-      --bookmark-panel-max-height: 32rem;
+      --bookmark-direction: 1;
+      --bookmark-pull-room: max(0px, calc((100dvw - 100cqi) / 2 - 3.25rem));
+      --bookmark-rest-x: calc(var(--bookmark-direction) * 2.75rem);
+      --bookmark-hover-x: calc(var(--bookmark-direction) * (2.75rem + min(0.375rem, var(--bookmark-pull-room))));
+      --bookmark-open-x: calc(var(--bookmark-direction) * (2.75rem + min(1rem, var(--bookmark-pull-room))));
+      --bookmark-panel-max-height: calc(50dvh + 5.625cqi - 2rem);
       position: absolute;
       inset-block-start: 40%;
       inset-inline: auto 0;
-      z-index: 24;
+      /* No stacking context: the real paper covers the inserted ribbon,
+         while the open navigation panel can still sit above the album. */
+      z-index: auto;
       width: 0;
-      height: 8rem;
+      height: 11rem;
       overflow: visible;
       pointer-events: none;
+      translate: none;
     }
 
-    .album-object.is-back-cover-object .bookmark-index {
-      --bookmark-rest-x: -1rem;
-      --bookmark-hover-x: -1rem;
-      --bookmark-open-x: -1rem;
+    .album-object.is-closed-cover .bookmark-index {
+      --bookmark-pull-room: max(0px, calc((100dvw - 50cqi) / 2 - 3.25rem));
+    }
+
+    .bookmark-index[data-bookmark-side="left"] {
+      --bookmark-direction: -1;
       inset-inline: 0 auto;
-    }
-
-    .bookmark-index::before {
-      content: "";
-      position: absolute;
-      inset-block: -0.2rem;
-      inset-inline-end: -0.08rem;
-      z-index: 3;
-      width: 0.18rem;
-      border-radius: 50%;
-      background: rgb(48 37 31 / 0.3);
-      box-shadow:
-        0.08rem 0 0.18rem rgb(42 34 28 / 0.28),
-        inset 0.08rem 0 0.1rem rgb(255 255 255 / 0.24);
-      pointer-events: none;
-    }
-
-    .album-object.is-back-cover-object .bookmark-index::before {
-      inset-inline: -0.08rem auto;
-      box-shadow:
-        -0.08rem 0 0.18rem rgb(42 34 28 / 0.28),
-        inset -0.08rem 0 0.1rem rgb(255 255 255 / 0.24);
-    }
-
-    .bookmark-index::after {
-      content: "";
-      position: absolute;
-      inset-block: 0;
-      inset-inline-end: -0.06rem;
-      z-index: 2;
-      width: 1.8rem;
-      background:
-        linear-gradient(90deg, transparent, rgb(255 255 255 / 0.2) 72%),
-        var(--paper-raised);
-      box-shadow: inset -0.22rem 0 0.32rem -0.28rem rgb(42 34 28 / 0.42);
-      pointer-events: none;
-    }
-
-    .album-object.is-back-cover-object .bookmark-index::after {
-      inset-inline: -0.06rem auto;
-      background:
-        linear-gradient(90deg, rgb(255 255 255 / 0.2) 28%, transparent),
-        var(--paper-raised);
-      box-shadow: inset 0.22rem 0 0.32rem -0.28rem rgb(42 34 28 / 0.42);
-    }
-
-    /* Continue the real cover edge across the occluded part of the ribbon. */
-    .album-object.is-closed-cover .bookmark-index::after {
-      inset-inline-end: 0;
-      border-inline-end: 0.45rem solid rgb(71 60 51 / 0.34);
-    }
-
-    .album-object.is-back-cover-object .bookmark-index::after {
-      inset-inline: 0 auto;
-      border-inline-start: 0.45rem solid rgb(71 60 51 / 0.34);
-      border-inline-end: 0;
     }
 
     .bookmark-index summary {
       position: absolute;
       inset-block-start: 0;
       inset-inline-end: 0;
-      z-index: 1;
+      z-index: 0;
       display: grid;
-      width: 2.75rem;
-      min-width: 2.75rem;
-      height: 8rem;
-      min-height: 8rem;
+      width: 4.25rem;
+      min-width: 4.25rem;
+      height: 11rem;
+      min-height: 11rem;
       padding: 0;
       place-items: center;
       border: 0;
@@ -606,7 +558,7 @@ h1 {
     .bookmark-ribbon {
       position: absolute;
       inset: 0 0 0 auto;
-      width: 2.5rem;
+      width: 4rem;
       border-radius: 0.12rem 0.18rem 0.18rem 0.12rem;
       background:
         linear-gradient(90deg, rgb(255 255 255 / 0.18), transparent 30%, rgb(50 35 30 / 0.14) 84%),
@@ -626,7 +578,7 @@ h1 {
       content: "";
       position: absolute;
       inset-block: 0.5rem 1.05rem;
-      inset-inline-end: 1.12rem;
+      inset-inline-end: 2.5rem;
       border-inline-start: 1px dashed rgb(255 247 238 / 0.36);
       filter: drop-shadow(1px 0 0 rgb(55 38 31 / 0.13));
       pointer-events: none;
@@ -635,27 +587,27 @@ h1 {
     .bookmark-ribbon-label {
       position: absolute;
       /* Physical axes: logical insets rotate with vertical writing mode. */
-      top: 0.58rem;
-      right: 0.06rem;
+      top: 0.5rem;
+      right: 0.5rem;
       display: grid;
-      width: 0.86rem;
-      height: 6.2rem;
+      width: 1.75rem;
+      height: 9rem;
       place-items: center;
       color: rgb(255 252 248 / 0.99);
-      font-size: 0.88rem;
+      font-size: 1rem;
       font-weight: 850;
       letter-spacing: 0.045em;
-      line-height: 1;
+      line-height: 1.1;
       text-shadow: 0 1px 1px rgb(44 29 24 / 0.38);
       writing-mode: vertical-rl;
       text-orientation: upright;
     }
 
-    .album-object.is-back-cover-object .bookmark-index summary {
+    .bookmark-index[data-bookmark-side="left"] summary {
       inset-inline: 0 auto;
     }
 
-    .album-object.is-back-cover-object .bookmark-ribbon {
+    .bookmark-index[data-bookmark-side="left"] .bookmark-ribbon {
       inset: 0 auto 0 0;
       border-radius: 0.18rem 0.12rem 0.12rem 0.18rem;
       box-shadow:
@@ -664,20 +616,31 @@ h1 {
         inset -0.22rem 0 0.32rem rgb(42 34 28 / 0.16);
     }
 
-    .album-object.is-back-cover-object .bookmark-ribbon::before {
-      inset-inline: 1.12rem auto;
+    .bookmark-index[data-bookmark-side="left"] .bookmark-ribbon::before {
+      inset-inline: 2.5rem auto;
       filter: drop-shadow(-1px 0 0 rgb(55 38 31 / 0.13));
     }
 
-    .album-object.is-back-cover-object .bookmark-ribbon-label {
+    .bookmark-index[data-bookmark-side="left"] .bookmark-ribbon-label {
       right: auto;
-      left: 0.06rem;
+      left: 0.5rem;
     }
 
     .bookmark-index summary:hover,
     .bookmark-index summary:focus-visible {
       translate: var(--bookmark-hover-x) 0;
       filter: brightness(1.025);
+    }
+
+    .bookmark-index[data-bookmark-turning] {
+      visibility: visible;
+      translate: var(--bookmark-scene-x, 0px) 0;
+    }
+
+    .bookmark-index[data-bookmark-turning] summary {
+      translate: var(--bookmark-rest-x) 0;
+      transition: none;
+      pointer-events: none;
     }
 
     .bookmark-index[open] summary {
@@ -691,7 +654,7 @@ h1 {
 
     .bookmark-panel {
       inset: 0 0.9rem auto auto;
-      z-index: 4;
+      z-index: 32;
       pointer-events: auto;
       width: min(23rem, 70cqi, calc(100dvw - 2rem));
       max-height: min(32rem, var(--bookmark-panel-max-height));
@@ -710,7 +673,7 @@ h1 {
       transform-origin: right center;
     }
 
-    .album-object.is-back-cover-object .bookmark-panel {
+    .bookmark-index[data-bookmark-side="left"] .bookmark-panel {
       inset: 0 auto auto 0.9rem;
       border-radius: 0.08rem 0.16rem 0.16rem 0.08rem;
       transform-origin: left center;
@@ -730,7 +693,7 @@ h1 {
       pointer-events: none;
     }
 
-    .album-object.is-back-cover-object .bookmark-panel::before {
+    .bookmark-index[data-bookmark-side="left"] .bookmark-panel::before {
       inset-inline: 0 auto;
       background:
         linear-gradient(90deg, rgb(223 214 201 / 0.95), var(--paper-raised));

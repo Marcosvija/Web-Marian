@@ -141,6 +141,30 @@ const nextKicker =
   const getObject = () => document.querySelector<HTMLElement>('[data-album-object]');
   const getNavigation = () => document.querySelector<HTMLElement>('[data-page-navigation]');
 
+  const resetBookmarkScene = () => {
+    const bookmark = getObject()?.querySelector<HTMLElement>('[data-bookmark-index]');
+    if (!bookmark) return;
+    delete bookmark.dataset.bookmarkTurning;
+    bookmark.style.removeProperty('--bookmark-scene-x');
+    bookmark.dataset.bookmarkSide = window.location.pathname === '/contraportada/' ? 'left' : 'right';
+  };
+
+  const composePreviewIndex = (spread: HTMLElement) => {
+    if (!spread.matches('[data-album-map-view="index"]')) return true;
+    const stage = getStage();
+    if (!stage) return false;
+    // Match the destination's real container and typography before cloning pages.
+    spread.style.cssText = 'position:absolute;inset:0;visibility:hidden;pointer-events:none';
+    spread.setAttribute('inert', '');
+    spread.setAttribute('aria-hidden', 'true');
+    stage.append(spread);
+    document.dispatchEvent(new CustomEvent('album:compose-index', { detail: spread }));
+    const fits = spread.dataset.indexLayout === 'spread';
+    spread.remove();
+    spread.removeAttribute('style');
+    return fits;
+  };
+
   const physicalModeAvailable = () => {
     if (reducedMotion.matches) return false;
     const navigation = getNavigation();
@@ -293,6 +317,7 @@ const nextKicker =
         const html = await response.text();
         const parsed = new DOMParser().parseFromString(html, 'text/html');
         const destinationSpread = parsed.querySelector<HTMLElement>('[data-album-spread]');
+        if (destinationSpread && !composePreviewIndex(destinationSpread)) return null;
         const destinationLeft =
           destinationSpread?.querySelector<HTMLElement>(':scope > .album-page-left');
         const destinationRight =
@@ -326,8 +351,8 @@ const nextKicker =
         spread.prepend(host);
 
         const flip = new PageFlip(host, {
-          width: Math.round(pageBox.width),
-          height: Math.round(pageBox.height),
+          width: pageBox.width,
+          height: pageBox.height,
           size: 'fixed',
           startPage: direction === 'next' ? 0 : 2,
           drawShadow: true,
@@ -616,8 +641,8 @@ const nextKicker =
         stage.append(host);
 
         const flip = new PageFlip(host, {
-          width: Math.round(pageWidth),
-          height: Math.round(referenceHeight),
+          width: pageWidth,
+          height: referenceHeight,
           size: 'fixed',
           startPage,
           drawShadow: true,
@@ -699,6 +724,54 @@ const nextKicker =
     scene.host.dataset.coverSpatialProgress = clamped.toFixed(3);
     scene.host.dataset.coverClipSide = front ? 'left' : 'right';
 
+    if (scene.host.classList.contains('is-active')) {
+      const object = getObject();
+      const bookmark = object?.querySelector<HTMLDetailsElement>('[data-bookmark-index]');
+      if (object && bookmark) {
+        // The marker is behind the actual scene pages, never behind a fake plate.
+        // At the back hinge it crosses under those pages before emerging on the
+        // mirrored edge. Change side at the middle of the always-present left
+        // sheet, where both ribbon orientations are fully covered by real paper.
+        const width = scene.pageWidth * 2;
+        let anchor = width * (1 - (front ? 0.25 : 0.75) * closedness);
+        const leftSide = !front && anchor <= shift + scene.pageWidth / 2;
+        const sourceClosed = object.classList.contains('is-closed-cover');
+        const objectLeft = sourceClosed ? width / 4 : 0;
+        const objectWidth = sourceClosed ? width / 2 : width;
+        const calculation = scene.flip.getFlipController().getCalculation();
+        if (!front && !leftSide && calculation && clamped > 0 && clamped < 1) {
+          // The back opening has a transparent placeholder to the right of the
+          // hinge. Interpolating only the two route anchors can leave the ribbon
+          // floating there. Bound its insertion by the actual paper cross-section
+          // throughout the ribbon's height, using the same fold polygons as the
+          // renderer (and the closing cutout below), without adding an occluder.
+          const intersections = (area: ({ x: number; y: number } | null)[], y: number) => {
+            const points = area.filter((point): point is { x: number; y: number } => point !== null);
+            return points.flatMap((point, index) => {
+              const next = points[(index + 1) % points.length];
+              if (!next || point.y === next.y || y < Math.min(point.y, next.y) || y > Math.max(point.y, next.y)) return [];
+              return [point.x + (next.x - point.x) * (y - point.y) / (next.y - point.y)];
+            });
+          };
+          const height = scene.flip.getBoundsRect().height;
+          const top = height * 0.4;
+          const folded = calculation.getFlippingClipArea().map(point => point && ({
+            x: scene.pageWidth + (opening ? -point.x : point.x), y: point.y,
+          }));
+          const edge = Math.min(...[top, top + bookmark.offsetHeight / 2, top + bookmark.offsetHeight].map(y => {
+            const revealed = intersections(calculation.getBottomClipArea(), y);
+            const stationary = opening ? scene.pageWidth : scene.pageWidth + (revealed.length ? Math.min(...revealed) : scene.pageWidth);
+            return Math.min(width - clipSize, Math.max(stationary, ...intersections(folded, y)));
+          }));
+          anchor = Math.min(anchor, shift + edge);
+        }
+        bookmark.open = false;
+        bookmark.dataset.bookmarkTurning = 'true';
+        bookmark.dataset.bookmarkSide = leftSide ? 'left' : 'right';
+        bookmark.style.setProperty('--bookmark-scene-x', `${anchor - objectLeft - (leftSide ? 0 : objectWidth)}px`);
+      }
+    }
+
     // A closed cover has no paper underneath its free side. page-flip keeps
     // the old static page there; its transparent placeholder cannot occlude it.
     // Subtract the renderer's actual revealed polygon from that static surface,
@@ -779,6 +852,7 @@ const nextKicker =
   };
 
   const destroyCoverScene = (scene: CoverScene) => {
+    resetBookmarkScene();
     getStage()?.classList.remove('is-cover-turning');
     delete document.documentElement.dataset.albumCoverActive;
     preparedCoverScenes.delete(scene.link);

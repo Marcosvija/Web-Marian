@@ -22,6 +22,7 @@ declare module 'page-flip' {
     getFlipController(): {
       getCalculation(): {
         getBottomClipArea(): ({ x: number; y: number } | null)[];
+        getFlippingClipArea(): ({ x: number; y: number } | null)[];
       } | null;
     };
     getUI(): { getDistElement(): HTMLElement };
