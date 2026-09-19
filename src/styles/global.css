@@ -599,6 +599,7 @@ h1 {
       letter-spacing: 0.045em;
       line-height: 1.1;
       text-shadow: 0 1px 1px rgb(44 29 24 / 0.38);
+      text-transform: uppercase;
       writing-mode: vertical-rl;
       text-orientation: upright;
     }

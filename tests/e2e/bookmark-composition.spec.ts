@@ -7,6 +7,7 @@ test('wide ribbon keeps every glyph and its hit area inside the viewport in ever
       await page.goto(route);
       const bookmark = page.locator('[data-bookmark-index]');
       const summary = bookmark.locator('summary');
+      await expect(summary).toHaveAccessibleName('Índice');
       for (const state of ['rest', 'hover', 'focus', 'open']) {
         if (state === 'hover') await summary.hover();
         if (state === 'focus') await summary.focus();
@@ -29,7 +30,8 @@ test('wide ribbon keeps every glyph and its hit area inside the viewport in ever
           const panel = element.querySelector('nav')!;
           return {
             hit: summary.getBoundingClientRect().toJSON(), ribbon: ribbonBox.toJSON(), label: labelBox.toJSON(), glyphs: glyphs.toJSON(),
-            font: parseFloat(style.fontSize), overflow: document.documentElement.scrollWidth - innerWidth,
+            font: parseFloat(style.fontSize), textTransform: style.textTransform,
+            overflow: document.documentElement.scrollWidth - innerWidth,
             exposed: left ? paperBox.left - ribbonBox.left : ribbonBox.right - paperBox.right,
             labelOutside: left ? labelBox.right <= paperBox.left : labelBox.left >= paperBox.right,
             panel: element.hasAttribute('open') ? panel.getBoundingClientRect().toJSON() : null,
@@ -41,6 +43,7 @@ test('wide ribbon keeps every glyph and its hit area inside the viewport in ever
         expect(geometry.ribbon.height, description).toBeGreaterThanOrEqual(160);
         expect(geometry.label.width, description).toBeGreaterThanOrEqual(28);
         expect(geometry.font, description).toBeGreaterThanOrEqual(16);
+        expect(geometry.textTransform, description).toBe('uppercase');
         expect(geometry.exposed, description).toBeGreaterThanOrEqual(44);
         expect(geometry.labelOutside, description).toBe(true);
         expect(geometry.glyphs.left, description).toBeGreaterThanOrEqual(geometry.label.left - 1);
@@ -62,6 +65,14 @@ test('wide ribbon keeps every glyph and its hit area inside the viewport in ever
       }
     }
   }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/portfolio/');
+  const mobileSummary = page.locator('[data-bookmark-index] summary');
+  const mobileLabel = mobileSummary.locator('.bookmark-ribbon-label');
+  await expect(mobileSummary).toHaveAccessibleName('Índice');
+  await expect(mobileLabel).toHaveText('Índice');
+  await expect(mobileLabel).toHaveCSS('text-transform', 'none');
 });
 
 test('real paper occludes the inserted ribbon without a rigid white plate during forward and backward curls', async ({ page }, testInfo) => {
